@@ -50,7 +50,7 @@ export interface Database {
           updated_at: string;
           deleted_at: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['collections']['Row'], 'created_at' | 'updated_at'>;
+        Insert: Omit<Database['public']['Tables']['collections']['Row'], 'created_at' | 'updated_at' | 'deleted_at'>;
         Update: Partial<Database['public']['Tables']['collections']['Insert']>;
       };
       bookmarks: {
@@ -80,7 +80,7 @@ export interface Database {
           user_notes: string | null;
           user_rating: number | null;
         };
-        Insert: Omit<Database['public']['Tables']['bookmarks']['Row'], 'created_at' | 'updated_at'>;
+        Insert: Omit<Database['public']['Tables']['bookmarks']['Row'], 'created_at' | 'updated_at' | 'deleted_at' | 'id' | 'domain'>;
         Update: Partial<Database['public']['Tables']['bookmarks']['Insert']>;
       };
       tags: {
@@ -94,7 +94,7 @@ export interface Database {
           updated_at: string;
           deleted_at: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['tags']['Row'], 'created_at' | 'updated_at'>;
+        Insert: Omit<Database['public']['Tables']['tags']['Row'], 'created_at' | 'updated_at' | 'deleted_at'>;
         Update: Partial<Database['public']['Tables']['tags']['Insert']>;
       };
       annotations: {
@@ -113,8 +113,26 @@ export interface Database {
           updated_at: string;
           deleted_at: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['annotations']['Row'], 'created_at' | 'updated_at'>;
+        Insert: Omit<Database['public']['Tables']['annotations']['Row'], 'created_at' | 'updated_at' | 'deleted_at'>;
         Update: Partial<Database['public']['Tables']['annotations']['Insert']>;
+      };
+      bookmark_tags: {
+        Row: {
+          bookmark_id: string;
+          tag_id: string;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['bookmark_tags']['Row'], 'created_at'>;
+        Update: Partial<Database['public']['Tables']['bookmark_tags']['Insert']>;
+      };
+      collection_bookmarks: {
+        Row: {
+          collection_id: string;
+          bookmark_id: string;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['collection_bookmarks']['Row'], 'created_at'>;
+        Update: Partial<Database['public']['Tables']['collection_bookmarks']['Insert']>;
       };
     };
   };

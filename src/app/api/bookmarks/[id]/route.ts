@@ -3,13 +3,17 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // Helper to check ownership
 async function getBookmark(supabase: Awaited<ReturnType<typeof createClient>>, id: string, userId: string) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('bookmarks')
     .select('*')
     .eq('id', id)
     .eq('user_id', userId)
     .is('deleted_at', null)
     .single();
+
+  if (error) {
+    throw new Error(`Database error: ${error.message}`);
+  }
 
   return data;
 }
@@ -27,41 +31,45 @@ export async function GET(
   }
 
   const { id } = await params;
-  const bookmark = await getBookmark(supabase, id, user.id);
 
-  if (!bookmark) {
+  try {
+    const bookmark = await getBookmark(supabase, id, user.id);
+
+    // Get tags
+    const { data: tags } = await supabase
+      .from('bookmark_tags')
+      .select(`
+        tags:tags!inner(
+          id,
+          name,
+          color
+        )
+      `)
+      .eq('bookmark_id', id);
+
+    // Get collections
+    const { data: collections } = await supabase
+      .from('collection_bookmarks')
+      .select(`
+        collections:collections!inner(
+          id,
+          name,
+          color
+        )
+      `)
+      .eq('bookmark_id', id);
+
+    return NextResponse.json({
+      bookmark,
+      tags: tags?.map(t => t.tags).filter(Boolean) || [],
+      collections: collections?.map(c => c.collections).filter(Boolean) || [],
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Database error')) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
     return NextResponse.json({ error: 'Bookmark not found' }, { status: 404 });
   }
-
-  // Get tags
-  const { data: tags } = await supabase
-    .from('bookmark_tags')
-    .select(`
-      tags:tags!inner(
-        id,
-        name,
-        color
-      )
-    `)
-    .eq('bookmark_id', id);
-
-  // Get collections
-  const { data: collections } = await supabase
-    .from('collection_bookmarks')
-    .select(`
-      collections:collections!inner(
-        id,
-        name,
-        color
-      )
-    `)
-    .eq('bookmark_id', id);
-
-  return NextResponse.json({
-    bookmark,
-    tags: tags?.map(t => t.tags).filter(Boolean) || [],
-    collections: collections?.map(c => c.collections).filter(Boolean) || [],
-  });
 }
 
 // PATCH /api/bookmarks/[id] - Update a bookmark
@@ -77,15 +85,24 @@ export async function PATCH(
   }
 
   const { id } = await params;
-  const bookmark = await getBookmark(supabase, id, user.id);
-
-  if (!bookmark) {
-    return NextResponse.json({ error: 'Bookmark not found' }, { status: 404 });
-  }
 
   try {
+    const bookmark = await getBookmark(supabase, id, user.id);
+
     const body = await request.json();
-    const { tags, collection_id, ...updateData } = body;
+    const { tags, collection_id, title, url, description, is_favorite, is_archived, is_read_later, user_notes, user_rating, metadata } = body;
+
+    // Whitelist allowed updatable fields
+    const updateData: Record<string, any> = {};
+    if (title !== undefined) updateData.title = title;
+    if (url !== undefined) updateData.url = url;
+    if (description !== undefined) updateData.description = description;
+    if (is_favorite !== undefined) updateData.is_favorite = is_favorite;
+    if (is_archived !== undefined) updateData.is_archived = is_archived;
+    if (is_read_later !== undefined) updateData.is_read_later = is_read_later;
+    if (user_notes !== undefined) updateData.user_notes = user_notes;
+    if (user_rating !== undefined) updateData.user_rating = user_rating;
+    if (metadata !== undefined) updateData.metadata = metadata;
 
     const { data: updatedBookmark, error } = await supabase
       .from('bookmarks')
@@ -98,8 +115,13 @@ export async function PATCH(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Handle tags update
     if (tags !== undefined) {
-      await supabase.from('bookmark_tags').delete().eq('bookmark_id', id);
+      const { error: deleteError } = await supabase.from('bookmark_tags').delete().eq('bookmark_id', id);
+
+      if (deleteError) {
+        return NextResponse.json({ error: `Failed to update tags: ${deleteError.message}` }, { status: 500 });
+      }
 
       if (tags.length > 0) {
         const tagEntries = tags.map((tagId: string) => ({
@@ -107,23 +129,39 @@ export async function PATCH(
           tag_id: tagId,
         }));
 
-        await supabase.from('bookmark_tags').insert(tagEntries);
+        const { error: insertError } = await supabase.from('bookmark_tags').insert(tagEntries);
+
+        if (insertError) {
+          return NextResponse.json({ error: `Failed to insert tags: ${insertError.message}` }, { status: 500 });
+        }
       }
     }
 
+    // Handle collection update
     if (collection_id !== undefined) {
-      await supabase.from('collection_bookmarks').delete().eq('bookmark_id', id);
+      const { error: deleteError } = await supabase.from('collection_bookmarks').delete().eq('bookmark_id', id);
+
+      if (deleteError) {
+        return NextResponse.json({ error: `Failed to update collection: ${deleteError.message}` }, { status: 500 });
+      }
 
       if (collection_id) {
-        await supabase.from('collection_bookmarks').insert({
+        const { error: insertError } = await supabase.from('collection_bookmarks').insert({
           collection_id,
           bookmark_id: id,
         });
+
+        if (insertError) {
+          return NextResponse.json({ error: `Failed to insert collection: ${insertError.message}` }, { status: 500 });
+        }
       }
     }
 
     return NextResponse.json({ bookmark: updatedBookmark });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Database error')) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   }
 }
@@ -141,20 +179,24 @@ export async function DELETE(
   }
 
   const { id } = await params;
-  const bookmark = await getBookmark(supabase, id, user.id);
 
-  if (!bookmark) {
+  try {
+    await getBookmark(supabase, id, user.id);
+
+    const { error } = await supabase
+      .from('bookmarks')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Database error')) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
     return NextResponse.json({ error: 'Bookmark not found' }, { status: 404 });
   }
-
-  const { error } = await supabase
-    .from('bookmarks')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', id);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ success: true });
 }

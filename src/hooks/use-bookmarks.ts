@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 export interface Bookmark {
@@ -66,6 +66,14 @@ export function useBookmarks(): UseBookmarksReturn {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const supabase = createClient();
+
+  // Use ref to track latest bookmarks state for toggleFavorite
+  const bookmarksRef = useRef<Bookmark[]>([]);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    bookmarksRef.current = bookmarks;
+  }, [bookmarks]);
 
   const fetchBookmarks = useCallback(async (options?: {
     page?: number;
@@ -188,11 +196,12 @@ export function useBookmarks(): UseBookmarksReturn {
   }, []);
 
   const toggleFavorite = useCallback(async (id: string): Promise<boolean> => {
-    const bookmark = bookmarks.find(b => b.id === id);
+    // Use ref to get latest bookmarks state
+    const bookmark = bookmarksRef.current.find(b => b.id === id);
     if (!bookmark) return false;
 
     return updateBookmark(id, { is_favorite: !bookmark.is_favorite });
-  }, [bookmarks, updateBookmark]);
+  }, [updateBookmark]);
 
   return {
     bookmarks,

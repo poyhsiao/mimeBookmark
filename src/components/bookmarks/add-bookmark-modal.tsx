@@ -33,23 +33,31 @@ export function AddBookmarkModal({ isOpen, onClose, onSuccess }: AddBookmarkModa
       return;
     }
 
-    const bookmark = await createBookmark({
-      url: url.trim(),
-      title: title.trim() || undefined,
-      description: description.trim() || undefined,
-    });
-
-    if (bookmark) {
-      toast({
-        title: 'Bookmark added',
-        description: 'Your bookmark has been saved',
+    try {
+      const bookmark = await createBookmark({
+        url: url.trim(),
+        title: title.trim() || undefined,
+        description: description.trim() || undefined,
       });
-      handleClose();
-      onSuccess?.();
-    } else {
+
+      if (bookmark) {
+        toast({
+          title: 'Bookmark added',
+          description: 'Your bookmark has been saved',
+        });
+        handleClose();
+        onSuccess?.();
+      } else {
+        toast({
+          title: 'Error',
+          description: 'Failed to add bookmark',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to add bookmark',
+        description: error instanceof Error ? error.message : 'An unexpected error occurred',
         variant: 'destructive',
       });
     }

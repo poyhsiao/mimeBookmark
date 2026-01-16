@@ -1,4 +1,5 @@
 import { getCurrentUser } from '@/lib/auth/server';
+import { redirect } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { FolderOpen, Tags, BookMarked, Plus } from 'lucide-react';
@@ -7,12 +8,18 @@ import { BookmarksSection } from '@/components/bookmarks/bookmarks-section';
 
 export default async function DashboardPage() {
   const { user } = await getCurrentUser();
+
+  // Guard against missing user - redirect to login
+  if (!user) {
+    redirect('/login');
+  }
+
   const supabase = await createClient();
 
   const [collectionsResult, bookmarksResult, tagsResult] = await Promise.all([
-    supabase.from('collections').select('id', { count: 'exact', head: true }).eq('user_id', user?.id).is('deleted_at', null),
-    supabase.from('bookmarks').select('id', { count: 'exact', head: true }).eq('user_id', user?.id).is('deleted_at', null),
-    supabase.from('tags').select('id', { count: 'exact', head: true }).eq('user_id', user?.id).is('deleted_at', null),
+    supabase.from('collections').select('id', { count: 'exact', head: true }).eq('user_id', user.id).is('deleted_at', null),
+    supabase.from('bookmarks').select('id', { count: 'exact', head: true }).eq('user_id', user.id).is('deleted_at', null),
+    supabase.from('tags').select('id', { count: 'exact', head: true }).eq('user_id', user.id).is('deleted_at', null),
   ]);
 
   const stats = {

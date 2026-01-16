@@ -1,6 +1,6 @@
 ---
 description: Generate an actionable, dependency-ordered tasks.md for the feature based on available design artifacts.
-handoffs: 
+handoffs:
   - label: Analyze For Consistency
     agent: speckit.analyze
     prompt: Run a project analysis for consistency
@@ -10,6 +10,8 @@ handoffs:
     prompt: Start the implementation in phases
     send: true
 ---
+
+# Generate Tasks
 
 ## User Input
 
@@ -21,7 +23,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Outline
 
-1. **Setup**: Run `.specify/scripts/bash/check-prerequisites.sh --json` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
+1. **Setup**: Run `.specify/scripts/bash/check-prerequisites.sh --json` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use POSIX escape syntax: `'I'\''m Groot'` (this is the standard way to include a single quote inside a single-quoted string in POSIX shells — close the quote, escape a single quote, then reopen the quote). When possible, using double quotes like `"I'm Groot"` is simpler and more readable.
 
 2. **Load design documents**: Read from FEATURE_DIR:
    - **Required**: plan.md (tech stack, libraries, structure), spec.md (user stories with priorities)

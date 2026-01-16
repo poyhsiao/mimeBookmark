@@ -18,36 +18,79 @@ export function BookmarkCard({ bookmark, onDelete, onToggleFavorite }: BookmarkC
   const { toast } = useToast();
   const [showMenu, setShowMenu] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isFavoriteLoading, setIsFavoriteLoading] = useState(false);
 
   const handleCopyUrl = async () => {
-    await navigator.clipboard.writeText(bookmark.url);
-    toast({
-      title: 'Copied!',
-      description: 'URL copied to clipboard',
-    });
-    setShowMenu(false);
+    try {
+      await navigator.clipboard.writeText(bookmark.url);
+      toast({
+        title: 'Copied!',
+        description: 'URL copied to clipboard',
+      });
+      setShowMenu(false);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to copy URL to clipboard',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to delete this bookmark?')) return;
 
     setIsDeleting(true);
-    const success = await onDelete(bookmark.id);
-    setIsDeleting(false);
+    try {
+      const success = await onDelete(bookmark.id);
 
-    if (success) {
-      toast({
-        title: 'Deleted',
-        description: 'Bookmark has been deleted',
-      });
-    } else {
+      if (success) {
+        toast({
+          title: 'Deleted',
+          description: 'Bookmark has been deleted',
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: 'Failed to delete bookmark',
+          variant: 'destructive',
+        });
+      }
+      setShowMenu(false);
+    } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to delete bookmark',
+        description: error instanceof Error ? error.message : 'Failed to delete bookmark',
         variant: 'destructive',
       });
+    } finally {
+      setIsDeleting(false);
     }
-    setShowMenu(false);
+  };
+
+  const handleToggleFavorite = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsFavoriteLoading(true);
+
+    try {
+      const success = await onToggleFavorite(bookmark.id);
+
+      if (!success) {
+        toast({
+          title: 'Error',
+          description: 'Failed to update favorite status',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to update favorite',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsFavoriteLoading(false);
+    }
   };
 
   const getFaviconUrl = (url: string) => {
@@ -56,6 +99,24 @@ export function BookmarkCard({ bookmark, onDelete, onToggleFavorite }: BookmarkC
       return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
     } catch {
       return null;
+    }
+  };
+
+  const handleFaviconError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const target = e.target as HTMLImageElement;
+    const parent = target.parentElement;
+
+    if (parent && bookmark.domain && bookmark.domain.length > 0) {
+      // Remove the image
+      target.style.display = 'none';
+
+      // Create a span element safely
+      const span = document.createElement('span');
+      span.className = 'text-xs';
+      span.textContent = bookmark.domain[0].toUpperCase();
+
+      // Append the span to parent
+      parent.appendChild(span);
     }
   };
 
@@ -79,10 +140,7 @@ export function BookmarkCard({ bookmark, onDelete, onToggleFavorite }: BookmarkC
               src={getFaviconUrl(bookmark.url) || ''}
               alt=""
               className="w-6 h-6 object-contain"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.parentElement!.innerHTML = '<span class="text-xs">' + bookmark.domain[0].toUpperCase() + '</span>';
-              }}
+              onError={handleFaviconError}
             />
           )}
         </div>
@@ -110,10 +168,8 @@ export function BookmarkCard({ bookmark, onDelete, onToggleFavorite }: BookmarkC
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8"
-                onClick={(e) => {
-                  e.preventDefault();
-                  onToggleFavorite(bookmark.id);
-                }}
+                onClick={handleToggleFavorite}
+                disabled={isFavoriteLoading}
               >
                 <Star
                   className={`h-4 w-4 ${
@@ -137,6 +193,7 @@ export function BookmarkCard({ bookmark, onDelete, onToggleFavorite }: BookmarkC
                 {showMenu && (
                   <div className="absolute right-0 top-full mt-1 w-48 bg-popover border rounded-lg shadow-lg z-10 py-1">
                     <button
+                      type="button"
                       className="w-full px-4 py-2 text-left text-sm hover:bg-accent flex items-center gap-2"
                       onClick={handleCopyUrl}
                     >
@@ -144,6 +201,7 @@ export function BookmarkCard({ bookmark, onDelete, onToggleFavorite }: BookmarkC
                       Copy URL
                     </button>
                     <button
+                      type="button"
                       className="w-full px-4 py-2 text-left text-sm hover:bg-accent flex items-center gap-2"
                       onClick={() => {
                         setShowMenu(false);
@@ -153,6 +211,7 @@ export function BookmarkCard({ bookmark, onDelete, onToggleFavorite }: BookmarkC
                       Archive
                     </button>
                     <button
+                      type="button"
                       className="w-full px-4 py-2 text-left text-sm hover:bg-accent text-destructive flex items-center gap-2"
                       onClick={handleDelete}
                       disabled={isDeleting}
@@ -196,8 +255,16 @@ export function BookmarkCard({ bookmark, onDelete, onToggleFavorite }: BookmarkC
       {/* Click outside to close menu */}
       {showMenu && (
         <div
+          role="button"
+          tabIndex={0}
+          aria-label="Close menu"
           className="fixed inset-0 z-0"
           onClick={() => setShowMenu(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
+              setShowMenu(false);
+            }
+          }}
         />
       )}
     </div>

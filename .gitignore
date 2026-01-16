@@ -17,6 +17,17 @@ dist/
 # Misc
 .DS_Store
 *.pem
+*.swp
+*~
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# IDE
+.vscode/
+.idea/
+*.iml
 
 # Debug
 npm-debug.log*

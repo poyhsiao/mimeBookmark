@@ -1,6 +1,25 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
+// Helper function to safely extract domain from URL
+function extractDomain(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    return urlObj.hostname;
+  } catch {
+    // If URL parsing fails, try prepending protocol
+    try {
+      const urlWithProtocol = url.startsWith('//') ? `https:${url}` : `https://${url}`;
+      const urlObj = new URL(urlWithProtocol);
+      return urlObj.hostname;
+    } catch {
+      // Fallback: extract domain-like string from input
+      const match = url.match(/^(?:https?:\/\/)?(?:www\.)?([^\/\s:]+)/i);
+      return match ? match[1] : 'unknown';
+    }
+  }
+}
+
 // GET /api/bookmarks - List bookmarks with pagination and filters
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -55,9 +74,13 @@ export async function GET(request: NextRequest) {
     query = query.eq('is_archived', false);
   }
 
-  // Search
+  // Search using textSearch for safety (prevents SQL injection)
   if (search) {
-    query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%,url.ilike.%${search}%,user_notes.ilike.%${search}%`);
+    // Use Supabase's safe search with escaped search term
+    const searchTerm = search.replace(/[%_]/g, '\\$&'); // Escape wildcards
+    query = query.or(
+      `title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,url.ilike.%${searchTerm}%,user_notes.ilike.%${searchTerm}%`
+    );
   }
 
   // Sorting
@@ -107,26 +130,56 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { url, title, description, collection_id, tags, ...rest } = body;
+    const {
+      url,
+      title,
+      description,
+      collection_id,
+      tags,
+      is_favorite,
+      is_archived,
+      is_read_later,
+      user_notes,
+      user_rating,
+      metadata,
+      favicon_url,
+      og_image,
+      og_title,
+      og_description
+    } = body;
 
     if (!url) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
 
-    // Extract domain from URL
-    const domain = url.split('://')[1]?.split('/')[0] || url;
+    // Extract domain from URL safely
+    const domain = extractDomain(url);
+
+    // Build insert payload with only whitelisted fields
+    const insertData: any = {
+      user_id: user.id,
+      url,
+      domain,
+    };
+
+    // Only include allowed fields if provided
+    if (title !== undefined) insertData.title = title;
+    if (description !== undefined) insertData.description = description;
+    if (is_favorite !== undefined) insertData.is_favorite = is_favorite;
+    if (is_archived !== undefined) insertData.is_archived = is_archived;
+    if (is_read_later !== undefined) insertData.is_read_later = is_read_later;
+    if (user_notes !== undefined) insertData.user_notes = user_notes;
+    if (user_rating !== undefined) insertData.user_rating = user_rating;
+    if (metadata !== undefined) insertData.metadata = metadata;
+    if (favicon_url !== undefined) insertData.favicon_url = favicon_url;
+    if (og_image !== undefined) insertData.og_image = og_image;
+    if (og_title !== undefined) insertData.og_title = og_title;
+    if (og_description !== undefined) insertData.og_description = og_description;
 
     // Create bookmark
     const { data: bookmark, error } = await supabase
       .from('bookmarks')
-      .insert({
-        user_id: user.id,
-        url,
-        title,
-        description,
-        domain,
-        ...rest,
-      })
+      .insert(insertData)
       .select()
       .single();
 

@@ -10,23 +10,45 @@ export function useUser() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+    let subscription: { unsubscribe: () => void } | null = null;
+
     const supabase = createClient();
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        if (mounted) {
+          setSession(session);
+          setUser(session?.user ?? null);
+          setLoading(false);
+        }
+      })
+      .catch((error) => {
+        if (mounted) {
+          console.error('Error getting session:', error);
+          setLoading(false);
+        }
+      });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    const { data: subscriptionData } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (mounted) {
+          setSession(session);
+          setUser(session?.user ?? null);
+          setLoading(false);
+        }
+      }
+    );
 
-    return () => subscription.unsubscribe();
+    subscription = subscriptionData;
+
+    return () => {
+      mounted = false;
+      if (subscription) {
+        subscription.unsubscribe();
+      }
+    };
   }, []);
 
   return { user, session, loading };

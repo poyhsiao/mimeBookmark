@@ -31,7 +31,7 @@ type ActionType = typeof actionTypes;
 
 type Action =
   | { type: ActionType['ADD_TOAST']; toast: ToasterToast }
-  | { type: ActionType['UPDATE_TOAST']; toast: Partial<ToasterToast> }
+  | { type: ActionType['UPDATE_TOAST']; toast: Partial<ToasterToast> & { id: string } }
   | { type: ActionType['DISMISS_TOAST']; toastId?: ToasterToast['id'] }
   | { type: ActionType['REMOVE_TOAST']; toastId?: ToasterToast['id'] };
 
@@ -112,7 +112,7 @@ function useToast() {
       const index = listeners.indexOf(setState);
       if (index > -1) listeners.splice(index, 1);
     };
-  }, [state]);
+  }, []); // Empty dependency array - only subscribe on mount
 
   return {
     ...state,

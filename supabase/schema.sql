@@ -4,6 +4,9 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Enable PGroonga extension for full-text search
+CREATE EXTENSION IF NOT EXISTS pgroonga;
+
 -- Profiles table (extends auth.users)
 CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -69,8 +72,16 @@ CREATE TABLE IF NOT EXISTS bookmarks (
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   deleted_at TIMESTAMPTZ,
   user_notes TEXT,
-  user_rating INTEGER CHECK (user_rating IS NULL OR (user_rating >= 1 AND user_rating <= 5))
+  user_rating INTEGER CHECK (user_rating IS NULL OR (user_rating >= 1 AND user_rating <= 5)),
+  -- Prevent duplicate active URLs per user (soft-deleted URLs can be re-added)
+  CONSTRAINT bookmarks_user_url_unique UNIQUE (user_id, url)
 );
+
+-- Create partial unique index to enforce uniqueness only on non-deleted bookmarks
+-- This allows soft-deleted bookmarks to be re-created with the same URL
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bookmarks_user_url_unique
+  ON bookmarks(user_id, url)
+  WHERE deleted_at IS NULL;
 
 -- Tags table
 CREATE TABLE IF NOT EXISTS tags (
@@ -81,8 +92,14 @@ CREATE TABLE IF NOT EXISTS tags (
   usage_count INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  deleted_at TIMESTAMPTZ
+  deleted_at TIMESTAMPTZ,
+  -- Case-insensitive unique constraint on tag names per user
+  CONSTRAINT tags_user_name_unique UNIQUE (user_id, LOWER(name))
 );
+
+-- Create index for case-insensitive uniqueness
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_user_name_unique
+  ON tags(user_id, LOWER(name));
 
 -- Bookmark-Tags junction table
 CREATE TABLE IF NOT EXISTS bookmark_tags (
@@ -123,6 +140,7 @@ CREATE INDEX IF NOT EXISTS idx_bookmarks_user_id ON bookmarks(user_id);
 CREATE INDEX IF NOT EXISTS idx_bookmarks_domain ON bookmarks(domain);
 CREATE INDEX IF NOT EXISTS idx_bookmarks_created_at ON bookmarks(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_bookmarks_is_favorite ON bookmarks(user_id, is_favorite) WHERE is_favorite = TRUE;
+CREATE INDEX IF NOT EXISTS idx_bookmarks_user_active ON bookmarks(user_id, created_at DESC) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_collections_user_id ON collections(user_id);
 CREATE INDEX IF NOT EXISTS idx_collections_parent_id ON collections(parent_id);
 CREATE INDEX IF NOT EXISTS idx_tags_user_id ON tags(user_id);
@@ -191,15 +209,19 @@ CREATE POLICY "Users can delete own tags" ON tags
   FOR DELETE USING (auth.uid() = user_id);
 
 -- Bookmark-Tags: Users can manage their own bookmark-tag relationships
+-- Updated to verify both bookmark and tag ownership
 CREATE POLICY "Users can manage bookmark_tags" ON bookmark_tags
   FOR ALL USING (
     EXISTS (SELECT 1 FROM bookmarks WHERE id = bookmark_id AND user_id = auth.uid())
+    AND EXISTS (SELECT 1 FROM tags WHERE id = tag_id AND user_id = auth.uid())
   );
 
 -- Collection-Bookmarks: Users can manage their own collection-bookmark relationships
+-- Updated to verify both collection and bookmark ownership
 CREATE POLICY "Users can manage collection_bookmarks" ON collection_bookmarks
   FOR ALL USING (
     EXISTS (SELECT 1 FROM collections WHERE id = collection_id AND user_id = auth.uid())
+    AND EXISTS (SELECT 1 FROM bookmarks WHERE id = bookmark_id AND user_id = auth.uid())
   );
 
 -- Annotations: Users can only access their own annotations
@@ -249,7 +271,8 @@ BEGIN
     NEW.id,
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.email)
-  );
+  )
+  ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -260,16 +283,58 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- Function to extract domain from URL
+-- Robust function to extract domain from URL
 CREATE OR REPLACE FUNCTION extract_domain(url TEXT)
 RETURNS TEXT AS $$
-SELECT COALESCE(
-  SPLIT_PART(SPLIT_PART(url, '://', 2), '/', 1),
-  url
-);
-$$ LANGUAGE sql;
+DECLARE
+  domain_result TEXT;
+  parsed_url TEXT;
+  hostname TEXT;
+BEGIN
+  -- Reject file:// protocol and completely malformed input
+  IF url IS NULL OR url = '' OR url ~* '^file://' THEN
+    RETURN 'unknown';
+  END IF;
 
--- Trigger to set domain on bookmark insert
+  -- Add https:// if no protocol is present
+  IF url !~ '^[a-zA-Z][a-zA-Z0-9+.-]*://' THEN
+    parsed_url := 'https://' || url;
+  ELSE
+    parsed_url := url;
+  END IF;
+
+  -- Extract hostname using regex
+  -- Pattern matches protocol://[userinfo@]hostname[:port][/path]
+  hostname := substring(parsed_url FROM '://(?:([^@/]+)@)?([^/:]+)');
+
+  IF hostname IS NULL OR hostname = '' THEN
+    -- Fallback: try to extract domain-like string
+    hostname := substring(url FROM '(?:https?://)?(?:www\.)?([^/\s:]+)');
+  END IF;
+
+  -- Remove userinfo if present (everything before @)
+  IF hostname ~ '@' THEN
+    hostname := substring(hostname FROM '@(.+)$');
+  END IF;
+
+  -- Remove port number if present
+  hostname := substring(hostname FROM '^([^:]+)');
+
+  -- Handle IPv6 addresses (remove brackets)
+  IF hostname ~ '^\[.*\]$' THEN
+    hostname := substring(hostname FROM '^\[(.*)\]$');
+  END IF;
+
+  -- Validate result
+  IF hostname IS NULL OR hostname = '' OR length(hostname) < 2 THEN
+    RETURN 'unknown';
+  END IF;
+
+  RETURN lower(hostname);
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- Trigger to set domain on bookmark insert and update
 CREATE OR REPLACE FUNCTION set_bookmark_domain()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -278,7 +343,15 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS set_bookmark_domain ON bookmarks;
-CREATE TRIGGER set_bookmark_domain
+DROP TRIGGER IF EXISTS set_bookmark_domain_insert ON bookmarks;
+CREATE TRIGGER set_bookmark_domain_insert
   BEFORE INSERT ON bookmarks
   FOR EACH ROW EXECUTE FUNCTION set_bookmark_domain();
+
+-- Trigger to update domain when URL is changed
+DROP TRIGGER IF EXISTS set_bookmark_domain_update ON bookmarks;
+CREATE TRIGGER set_bookmark_domain_update
+  BEFORE UPDATE ON bookmarks
+  FOR EACH ROW
+  WHEN (NEW.url IS DISTINCT FROM OLD.url)
+  EXECUTE FUNCTION set_bookmark_domain();
