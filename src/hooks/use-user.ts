@@ -11,7 +11,6 @@ export function useUser() {
 
   useEffect(() => {
     let mounted = true;
-    let subscription: { unsubscribe: () => void } | null = null;
 
     const supabase = createClient();
 
@@ -31,7 +30,7 @@ export function useUser() {
         }
       });
 
-    const { data: subscriptionData } = supabase.auth.onAuthStateChange(
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         if (mounted) {
           setSession(session);
@@ -41,13 +40,9 @@ export function useUser() {
       }
     );
 
-    subscription = subscriptionData;
-
     return () => {
       mounted = false;
-      if (subscription) {
-        subscription.unsubscribe();
-      }
+      subscription.unsubscribe();
     };
   }, []);
 
