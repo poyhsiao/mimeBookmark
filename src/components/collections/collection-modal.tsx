@@ -141,6 +141,8 @@ export function CollectionModal({ isOpen, onClose, onSuccess }: CollectionModalP
                 style={{ backgroundColor: c }}
                 onClick={() => setColor(c)}
                 disabled={loading}
+                aria-label={`Select color ${c}`}
+                aria-pressed={color === c ? 'true' : 'false'}
               />
             ))}
           </div>

@@ -81,16 +81,18 @@ export async function PATCH(
     const body = await request.json();
     const { name, description, color, icon, is_favorite, is_public } = body;
 
+    // Build update payload, filtering out undefined values
+    const updatePayload: Record<string, unknown> = {};
+    if (name !== undefined) updatePayload.name = name;
+    if (description !== undefined) updatePayload.description = description;
+    if (color !== undefined) updatePayload.color = color;
+    if (icon !== undefined) updatePayload.icon = icon;
+    if (is_favorite !== undefined) updatePayload.is_favorite = is_favorite;
+    if (is_public !== undefined) updatePayload.is_public = is_public;
+
     const { data: updatedCollection, error } = await supabase
       .from('collections')
-      .update({
-        name,
-        description,
-        color,
-        icon,
-        is_favorite,
-        is_public,
-      })
+      .update(updatePayload)
       .eq('id', id)
       .select()
       .single();

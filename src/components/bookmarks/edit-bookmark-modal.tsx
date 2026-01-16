@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Bookmark } from '@/hooks/use-bookmarks';
 import { useToast } from '@/hooks/use-toast';
 import { Modal } from '@/components/ui/modal';
@@ -22,13 +22,14 @@ export function EditBookmarkModal({ isOpen, onClose, bookmark, onSuccess }: Edit
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
 
-  useState(() => {
+  // Sync form fields with bookmark data when modal opens
+  useEffect(() => {
     if (bookmark && isOpen) {
       setUrl(bookmark.url);
       setTitle(bookmark.title || '');
       setDescription(bookmark.description || '');
     }
-  });
+  }, [bookmark, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,12 +143,8 @@ export function EditBookmarkModal({ isOpen, onClose, bookmark, onSuccess }: Edit
   );
 }
 
-import { useCallback } from 'react';
-import { createClient } from '@/lib/supabase/client';
-
 function useBookmarks() {
   const [loading, setLoading] = useState(false);
-  const supabase = createClient();
 
   const updateBookmark = useCallback(async (id: string, updates: {
     url?: string;

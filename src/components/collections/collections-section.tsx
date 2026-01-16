@@ -74,7 +74,7 @@ export function CollectionsSection({ showHeader = true, limit }: CollectionsSect
         </div>
       ) : displayedCollections.length === 0 ? (
         <div className="text-center py-12">
-          {search ? (
+          {debouncedSearch ? (
             <>
               <SearchX className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium">No collections found</h3>
@@ -111,7 +111,10 @@ export function CollectionsSection({ showHeader = true, limit }: CollectionsSect
       <CollectionModal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
-        onSuccess={() => fetchCollections({ search: debouncedSearch })}
+        onSuccess={() => {
+          fetchCollections({ search: debouncedSearch, limit });
+          setShowModal(false);
+        }}
       />
     </div>
   );

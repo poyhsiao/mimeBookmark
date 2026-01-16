@@ -20,6 +20,7 @@ export function BookmarkCard({ bookmark, onDelete, onToggleFavorite, onUpdate }:
   const [showMenu, setShowMenu] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [faviconError, setFaviconError] = useState(false);
 
   const handleCopyUrl = async () => {
     try {
@@ -74,31 +75,35 @@ export function BookmarkCard({ bookmark, onDelete, onToggleFavorite, onUpdate }:
         <div className="flex items-start gap-3">
           <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
             {bookmark.favicon_url ? (
-              <img
-                src={bookmark.favicon_url}
-                alt=""
-                className="w-6 h-6 object-contain"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
+              faviconError ? (
+                bookmark.domain && (
+                  <span className="text-xs">{bookmark.domain[0].toUpperCase()}</span>
+                )
+              ) : (
+                <img
+                  src={bookmark.favicon_url}
+                  alt=""
+                  className="w-6 h-6 object-contain"
+                  onError={() => setFaviconError(true)}
+                />
+              )
+            ) : getFaviconUrl(bookmark.url) ? (
+              faviconError ? (
+                bookmark.domain && (
+                  <span className="text-xs">{bookmark.domain[0].toUpperCase()}</span>
+                )
+              ) : (
+                <img
+                  src={getFaviconUrl(bookmark.url)}
+                  alt=""
+                  className="w-6 h-6 object-contain"
+                  onError={() => setFaviconError(true)}
+                />
+              )
             ) : (
-              <img
-                src={getFaviconUrl(bookmark.url) || ''}
-                alt=""
-                className="w-6 h-6 object-contain"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                  const parent = target.parentElement;
-                  if (parent && bookmark.domain) {
-                    const span = document.createElement('span');
-                    span.className = 'text-xs';
-                    span.textContent = bookmark.domain[0].toUpperCase();
-                    parent.appendChild(span);
-                  }
-                }}
-              />
+              bookmark.domain && (
+                <span className="text-xs">{bookmark.domain[0].toUpperCase()}</span>
+              )
             )}
           </div>
 

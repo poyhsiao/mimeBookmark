@@ -133,10 +133,20 @@ export function useTags(): UseTagsReturn {
       const response = await fetch(`/api/tags/${id}`, {
         method: 'DELETE',
       });
+
+      // Handle 204 No Content responses
+      if (response.status === 204 || response.headers.get('content-length') === '0') {
+        if (!response.ok) {
+          throw new Error('Failed to delete tag');
+        }
+        setTags(prev => prev.filter(t => t.id !== id));
+        return true;
+      }
+
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to delete tag');
+        throw new Error(data?.error || 'Failed to delete tag');
       }
 
       setTags(prev => prev.filter(t => t.id !== id));

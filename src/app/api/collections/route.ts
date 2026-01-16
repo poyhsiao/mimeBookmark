@@ -11,10 +11,14 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
-  const page = parseInt(searchParams.get('page') || '1');
-  const limit = parseInt(searchParams.get('limit') || '20');
   const search = searchParams.get('search') || '';
   const sort = searchParams.get('sort') || 'newest';
+
+  // Validate and sanitize pagination params with safe defaults
+  const rawPage = searchParams.get('page');
+  const rawLimit = searchParams.get('limit');
+  const page = Number.isNaN(parseInt(rawPage || '1', 10)) ? 1 : Math.max(1, parseInt(rawPage || '1', 10));
+  const limit = Number.isNaN(parseInt(rawLimit || '20', 10)) ? 20 : Math.max(1, parseInt(rawLimit || '20', 10));
 
   const from = (page - 1) * limit;
   const to = from + limit - 1;
