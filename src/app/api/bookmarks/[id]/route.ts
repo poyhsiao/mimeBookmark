@@ -115,45 +115,27 @@ export async function PATCH(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Handle tags update
+    // Handle tags update - use atomic RPC function
     if (tags !== undefined) {
-      const { error: deleteError } = await supabase.from('bookmark_tags').delete().eq('bookmark_id', id);
+      const { error: tagsError } = await supabase.rpc('update_bookmark_tags', {
+        p_bookmark_id: id,
+        p_tag_ids: tags.length > 0 ? tags : []
+      });
 
-      if (deleteError) {
-        return NextResponse.json({ error: `Failed to update tags: ${deleteError.message}` }, { status: 500 });
-      }
-
-      if (tags.length > 0) {
-        const tagEntries = tags.map((tagId: string) => ({
-          bookmark_id: id,
-          tag_id: tagId,
-        }));
-
-        const { error: insertError } = await supabase.from('bookmark_tags').insert(tagEntries);
-
-        if (insertError) {
-          return NextResponse.json({ error: `Failed to insert tags: ${insertError.message}` }, { status: 500 });
-        }
+      if (tagsError) {
+        return NextResponse.json({ error: `Failed to update tags: ${tagsError.message}` }, { status: 500 });
       }
     }
 
-    // Handle collection update
+    // Handle collection update - use atomic RPC function
     if (collection_id !== undefined) {
-      const { error: deleteError } = await supabase.from('collection_bookmarks').delete().eq('bookmark_id', id);
+      const { error: collectionError } = await supabase.rpc('update_bookmark_collection', {
+        p_bookmark_id: id,
+        p_collection_id: collection_id
+      });
 
-      if (deleteError) {
-        return NextResponse.json({ error: `Failed to update collection: ${deleteError.message}` }, { status: 500 });
-      }
-
-      if (collection_id) {
-        const { error: insertError } = await supabase.from('collection_bookmarks').insert({
-          collection_id,
-          bookmark_id: id,
-        });
-
-        if (insertError) {
-          return NextResponse.json({ error: `Failed to insert collection: ${insertError.message}` }, { status: 500 });
-        }
+      if (collectionError) {
+        return NextResponse.json({ error: `Failed to update collection: ${collectionError.message}` }, { status: 500 });
       }
     }
 
@@ -168,7 +150,7 @@ export async function PATCH(
 
 // DELETE /api/bookmarks/[id] - Delete a bookmark
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient();

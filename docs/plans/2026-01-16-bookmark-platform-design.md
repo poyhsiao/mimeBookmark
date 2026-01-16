@@ -119,7 +119,7 @@
 
 | 层级 | 技术选择 | 版本 | 理由 |
 |------|---------|------|------|
-| **前端框架** | Next.js | 14+ (App Router) | SSR/SSG 兼顾 SEO，生态成熟 |
+| **前端框架** | Next.js | 15+ (App Router) | SSR/SSG 兼顾 SEO，生态成熟，注意异步 API 变更 |
 | **语言** | TypeScript | 5.x | 类型安全，企业级标准 |
 | **UI 组件** | Shadcn/ui + Tailwind CSS | 最新 | 高度可定制，现代美观 |
 | **状态管理** | Zustand + TanStack Query | 最新 | 轻量 + Server State 管理 |
@@ -806,10 +806,10 @@ services:
       - "3000:3000"
 
   mailhog:
-    image: a轮mailhog/mailhog
+    image: mailhog/mailhog
     ports:
       - "8025:8025"
-      - "8080:8080"
+      - "1025:1025"
 
 volumes:
   redis_data:
