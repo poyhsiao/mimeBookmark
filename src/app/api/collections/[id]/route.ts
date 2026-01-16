@@ -81,9 +81,14 @@ export async function PATCH(
     const body = await request.json();
     const { name, description, color, icon, is_favorite, is_public } = body;
 
+    // Validate name if provided
+    if (name !== undefined && (typeof name !== "string" || name.trim().length === 0)) {
+      return NextResponse.json({ error: 'Collection name must be a non-empty string' }, { status: 400 });
+    }
+
     // Build update payload, filtering out undefined values
     const updatePayload: Record<string, unknown> = {};
-    if (name !== undefined) updatePayload.name = name;
+    if (name !== undefined) updatePayload.name = name.trim();
     if (description !== undefined) updatePayload.description = description;
     if (color !== undefined) updatePayload.color = color;
     if (icon !== undefined) updatePayload.icon = icon;

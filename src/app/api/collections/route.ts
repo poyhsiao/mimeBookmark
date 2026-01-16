@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
+const MAX_LIMIT = 100;
+
 // GET /api/collections - List collections with pagination
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -18,7 +20,9 @@ export async function GET(request: NextRequest) {
   const rawPage = searchParams.get('page');
   const rawLimit = searchParams.get('limit');
   const page = Number.isNaN(parseInt(rawPage || '1', 10)) ? 1 : Math.max(1, parseInt(rawPage || '1', 10));
-  const limit = Number.isNaN(parseInt(rawLimit || '20', 10)) ? 20 : Math.max(1, parseInt(rawLimit || '20', 10));
+  const limit = Number.isNaN(parseInt(rawLimit || '20', 10))
+    ? 20
+    : Math.min(MAX_LIMIT, Math.max(1, parseInt(rawLimit || '20', 10)));
 
   const from = (page - 1) * limit;
   const to = from + limit - 1;
@@ -32,9 +36,13 @@ export async function GET(request: NextRequest) {
     .eq('user_id', user.id)
     .is('deleted_at', null);
 
-  // Search
+  // Search - escape wildcards to prevent SQL injection
   if (search) {
-    query = query.ilike('name', `%${search}%`);
+    const searchEscaped = search
+      .replace(/\\/g, '\\\\')
+      .replace(/%/g, '\\%')
+      .replace(/_/g, '\\_');
+    query = query.ilike('name', `%${searchEscaped}%`);
   }
 
   // Sorting

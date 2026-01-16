@@ -102,7 +102,7 @@ export function CollectionsSection({ showHeader = true, limit }: CollectionsSect
               key={collection.id}
               collection={collection}
               onDelete={deleteCollection}
-              onToggleFavorite={toggleFavorite}
+              onToggleFavorite={(id, currentIsFavorite) => toggleFavorite(id, currentIsFavorite)}
             />
           ))}
         </div>

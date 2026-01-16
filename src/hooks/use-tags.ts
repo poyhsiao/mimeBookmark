@@ -19,7 +19,7 @@ interface Pagination {
   totalPages: number;
 }
 
-interface UseTagsReturn {
+export interface UseTagsReturn {
   tags: Tag[];
   pagination: Pagination | null;
   loading: boolean;
@@ -52,8 +52,8 @@ export function useTags(): UseTagsReturn {
 
     try {
       const params = new URLSearchParams();
-      if (options?.page) params.set('page', options.page.toString());
-      if (options?.limit) params.set('limit', options.limit.toString());
+      if (options?.page !== undefined) params.set('page', options.page.toString());
+      if (options?.limit !== undefined) params.set('limit', options.limit.toString());
       if (options?.search) params.set('search', options.search);
       if (options?.sort) params.set('sort', options.sort);
 
@@ -135,12 +135,23 @@ export function useTags(): UseTagsReturn {
       });
 
       // Handle 204 No Content responses
-      if (response.status === 204 || response.headers.get('content-length') === '0') {
+      const contentLength = response.headers.get('content-length');
+      const isEmptyBody = response.status === 204 || contentLength === '0';
+
+      if (isEmptyBody) {
         if (!response.ok) {
           throw new Error('Failed to delete tag');
         }
         setTags(prev => prev.filter(t => t.id !== id));
         return true;
+      }
+
+      // Check body content if content-length is absent
+      if (!contentLength) {
+        const text = await response.clone().text();
+        if (text === '' && !response.ok) {
+          throw new Error('Failed to delete tag');
+        }
       }
 
       const data = await response.json();

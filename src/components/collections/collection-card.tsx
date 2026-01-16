@@ -10,7 +10,7 @@ import { Folder, FolderOpen, Star, MoreHorizontal, Trash2, Edit, Copy } from 'lu
 interface CollectionCardProps {
   collection: Collection;
   onDelete: (id: string) => Promise<boolean>;
-  onToggleFavorite: (id: string) => Promise<boolean>;
+  onToggleFavorite: (id: string, currentIsFavorite: boolean) => Promise<boolean>;
 }
 
 export function CollectionCard({ collection, onDelete, onToggleFavorite }: CollectionCardProps) {
@@ -18,13 +18,21 @@ export function CollectionCard({ collection, onDelete, onToggleFavorite }: Colle
   const [showMenu, setShowMenu] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(`${window.location.origin}/dashboard/collections/${collection.id}`);
-    toast({
-      title: 'Copied!',
-      description: 'Collection link copied to clipboard',
-    });
-    setShowMenu(false);
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/dashboard/collections/${collection.id}`);
+      toast({
+        title: 'Copied!',
+        description: 'Collection link copied to clipboard',
+      });
+      setShowMenu(false);
+    } catch {
+      toast({
+        title: 'Copy failed',
+        description: 'Could not copy link. Please copy manually.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleDelete = async () => {
@@ -75,7 +83,7 @@ export function CollectionCard({ collection, onDelete, onToggleFavorite }: Colle
                 className="h-8 w-8"
                 onClick={(e) => {
                   e.preventDefault();
-                  onToggleFavorite(collection.id);
+                  onToggleFavorite(collection.id, collection.is_favorite);
                 }}
               >
                 <Star
@@ -100,6 +108,7 @@ export function CollectionCard({ collection, onDelete, onToggleFavorite }: Colle
                 {showMenu && (
                   <div className="absolute right-0 top-full mt-1 w-48 bg-popover border rounded-lg shadow-lg z-10 py-1">
                     <button
+                      type="button"
                       className="w-full px-4 py-2 text-left text-sm hover:bg-accent flex items-center gap-2"
                       onClick={handleCopyLink}
                     >
@@ -107,6 +116,7 @@ export function CollectionCard({ collection, onDelete, onToggleFavorite }: Colle
                       Copy link
                     </button>
                     <button
+                      type="button"
                       className="w-full px-4 py-2 text-left text-sm hover:bg-accent text-destructive flex items-center gap-2"
                       onClick={handleDelete}
                       disabled={isDeleting}
@@ -134,9 +144,11 @@ export function CollectionCard({ collection, onDelete, onToggleFavorite }: Colle
       </div>
 
       {showMenu && (
-        <div
+        <button
+          type="button"
           className="fixed inset-0 z-0"
           onClick={() => setShowMenu(false)}
+          aria-label="Close menu"
         />
       )}
     </div>

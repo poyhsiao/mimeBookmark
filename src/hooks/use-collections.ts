@@ -42,6 +42,10 @@ interface UseCollectionsReturn {
   collections: Collection[];
   pagination: Pagination | null;
   loading: boolean;
+  isFetching: boolean;
+  isCreating: boolean;
+  isUpdating: boolean;
+  isDeleting: boolean;
   error: string | null;
   fetchCollections: (options?: {
     page?: number;
@@ -58,14 +62,19 @@ interface UseCollectionsReturn {
   }) => Promise<Collection | null>;
   updateCollection: (id: string, updates: Partial<Collection>) => Promise<boolean>;
   deleteCollection: (id: string) => Promise<boolean>;
-  toggleFavorite: (id: string) => Promise<boolean>;
+  toggleFavorite: (id: string, currentIsFavorite: boolean) => Promise<boolean>;
 }
 
 export function useCollections(): UseCollectionsReturn {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const loading = isFetching || isCreating || isUpdating || isDeleting;
 
   const fetchCollections = useCallback(async (options?: {
     page?: number;
@@ -73,13 +82,13 @@ export function useCollections(): UseCollectionsReturn {
     search?: string;
     sort?: 'newest' | 'oldest' | 'name';
   }) => {
-    setLoading(true);
+    setIsFetching(true);
     setError(null);
 
     try {
       const params = new URLSearchParams();
-      if (options?.page) params.set('page', options.page.toString());
-      if (options?.limit) params.set('limit', options.limit.toString());
+      if (options?.page !== undefined) params.set('page', options.page.toString());
+      if (options?.limit !== undefined) params.set('limit', options.limit.toString());
       if (options?.search) params.set('search', options.search);
       if (options?.sort) params.set('sort', options.sort);
 
@@ -95,7 +104,7 @@ export function useCollections(): UseCollectionsReturn {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
-      setLoading(false);
+      setIsFetching(false);
     }
   }, []);
 
@@ -106,7 +115,7 @@ export function useCollections(): UseCollectionsReturn {
     icon?: string;
     parent_id?: string;
   }): Promise<Collection | null> => {
-    setLoading(true);
+    setIsCreating(true);
     setError(null);
 
     try {
@@ -127,12 +136,12 @@ export function useCollections(): UseCollectionsReturn {
       setError(err instanceof Error ? err.message : 'An error occurred');
       return null;
     } finally {
-      setLoading(false);
+      setIsCreating(false);
     }
   }, []);
 
   const updateCollection = useCallback(async (id: string, updates: Partial<Collection>): Promise<boolean> => {
-    setLoading(true);
+    setIsUpdating(true);
     setError(null);
 
     try {
@@ -153,12 +162,12 @@ export function useCollections(): UseCollectionsReturn {
       setError(err instanceof Error ? err.message : 'An error occurred');
       return false;
     } finally {
-      setLoading(false);
+      setIsUpdating(false);
     }
   }, []);
 
   const deleteCollection = useCallback(async (id: string): Promise<boolean> => {
-    setLoading(true);
+    setIsDeleting(true);
     setError(null);
 
     try {
@@ -177,21 +186,36 @@ export function useCollections(): UseCollectionsReturn {
       setError(err instanceof Error ? err.message : 'An error occurred');
       return false;
     } finally {
-      setLoading(false);
+      setIsDeleting(false);
     }
   }, []);
 
-  const toggleFavorite = useCallback(async (id: string): Promise<boolean> => {
-    const collection = collections.find(c => c.id === id);
-    if (!collection) return false;
+  const toggleFavorite = useCallback(async (id: string, currentIsFavorite: boolean): Promise<boolean> => {
+    // Optimistic update
+    setCollections(prev => prev.map(c =>
+      c.id === id ? { ...c, is_favorite: !currentIsFavorite } : c
+    ));
 
-    return updateCollection(id, { is_favorite: !collection.is_favorite });
-  }, [collections, updateCollection]);
+    const success = await updateCollection(id, { is_favorite: !currentIsFavorite });
+
+    // Rollback on failure
+    if (!success) {
+      setCollections(prev => prev.map(c =>
+        c.id === id ? { ...c, is_favorite: currentIsFavorite } : c
+      ));
+    }
+
+    return success;
+  }, [updateCollection]);
 
   return {
     collections,
     pagination,
     loading,
+    isFetching,
+    isCreating,
+    isUpdating,
+    isDeleting,
     error,
     fetchCollections,
     createCollection,

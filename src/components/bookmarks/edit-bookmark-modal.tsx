@@ -16,7 +16,8 @@ interface EditBookmarkModalProps {
 }
 
 export function EditBookmarkModal({ isOpen, onClose, bookmark, onSuccess }: EditBookmarkModalProps) {
-  const { updateBookmark, loading } = useBookmarks();
+  const useLocalBookmarkForm = useBookmarks();
+  const { updateBookmark, loading } = useLocalBookmarkForm;
   const { toast } = useToast();
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
@@ -46,8 +47,8 @@ export function EditBookmarkModal({ isOpen, onClose, bookmark, onSuccess }: Edit
 
     const success = await updateBookmark(bookmark.id, {
       url: url.trim(),
-      title: title.trim() || undefined,
-      description: description.trim() || undefined,
+      title: title.trim() === '' ? null : title.trim(),
+      description: description.trim() === '' ? null : description.trim(),
     });
 
     if (success) {

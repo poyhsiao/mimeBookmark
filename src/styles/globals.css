@@ -57,3 +57,22 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  .color-btn-0 { background-color: #3B82F6; }
+  .color-btn-1 { background-color: #10B981; }
+  .color-btn-2 { background-color: #F59E0B; }
+  .color-btn-3 { background-color: #EF4444; }
+  .color-btn-4 { background-color: #8B5CF6; }
+  .color-btn-5 { background-color: #EC4899; }
+  .color-btn-6 { background-color: #06B6D4; }
+  .color-btn-7 { background-color: #84CC16; }
+  .color-btn-8 { background-color: #F97316; }
+  .color-btn-9 { background-color: #6366F1; }
+
+  .bookmark-tag {
+    background-color: var(--tag-bg, rgba(0, 0, 0, 0.1));
+    color: var(--tag-color, inherit);
+  }
+}
+
