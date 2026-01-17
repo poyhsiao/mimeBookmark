@@ -108,12 +108,28 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Find tags that need to be created (not in existingTags)
-      const tagsToCreate = tags.filter(
-        tag => tag.name && !tagNameToId[tag.name.toLowerCase()]
-      );
+      // Deduplicate tags by lower-cased name before creating
+      const uniqueTagsMap = new Map<string, { name: string; color?: string }>();
 
-      // Batch insert new tags
+      for (const tag of tags) {
+        if (!tag.name) continue;
+        const lowerName = tag.name.toLowerCase();
+
+        // Skip if already exists in database
+        if (tagNameToId[lowerName]) continue;
+
+        // Only keep first occurrence of each unique lower-cased name
+        if (!uniqueTagsMap.has(lowerName)) {
+          uniqueTagsMap.set(lowerName, {
+            name: tag.name,
+            color: tag.color || '#6B7280',
+          });
+        }
+      }
+
+      // Batch insert new tags (now deduplicated)
+      const tagsToCreate = Array.from(uniqueTagsMap.values());
+
       if (tagsToCreate.length > 0) {
         const { data: insertedTags } = await supabase
           .from('tags')
@@ -121,7 +137,7 @@ export async function POST(request: NextRequest) {
             tagsToCreate.map(tag => ({
               user_id: user.id,
               name: tag.name,
-              color: tag.color || '#6B7280',
+              color: tag.color,
             }))
           )
           .select('id, name');
@@ -190,8 +206,8 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Check limit
-      if (!overwrite && profile.bookmarks_count + results.imported >= profile.bookmarks_limit) {
+      // Check limit for new inserts (always enforce, even when overwrite=true)
+      if (profile.bookmarks_count + results.imported >= profile.bookmarks_limit) {
         results.errors.push(`Skipped ${bookmark.url}: storage limit reached`);
         continue;
       }
