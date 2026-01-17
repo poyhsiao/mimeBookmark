@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  loki:
+    image: grafana/loki:2.9.7
+    container_name: mimebookmark-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki-data:/loki
+      - ./docker/loki-config.yaml:/etc/loki/local-config.yaml:ro
+    command: -config.file=/etc/loki/local-config.yaml
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - mimebookmark-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.5.0
+    container_name: mimebookmark-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_LOKI_ALLOW_GOGS=Y
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+    depends_on:
+      loki:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - mimebookmark-network
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:2.9.7
+    container_name: mimebookmark-promtail
+    volumes:
+      - /var/log:/var/log:ro
+      - ./docker/promtail-config.yaml:/etc/promtail/config.yaml:ro
+      - ./logs:/app/logs:ro
+    command: -config.file=/etc/promtail/config.yaml
+    depends_on:
+      loki:
+        condition: service_healthy
+    networks:
+      - mimebookmark-network
+    restart: unless-stopped
+
+networks:
+  mimebookmark-network:
+    driver: bridge
+
+volumes:
+  loki-data:
+    driver: local
+  grafana-data:
+    driver: local

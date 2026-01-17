@@ -1,0 +1,54 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+    tenant_id: mimebookmark
+
+scrape_configs:
+  - job_name: mimebookmark-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: mimebookmark
+          service: mimebookmark
+          environment: ${ENVIRONMENT:-development}
+        paths:
+          - /app/logs/**/*.log
+
+  - job_name: system-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: system
+          service: system
+        paths:
+          - /var/log/**/*.log
+
+  - job_name: nginx-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nginx
+          service: nginx
+        paths:
+          - /var/log/nginx/**/*.log
+
+  - job_name: docker-logs
+    docker_sd_configs:
+      - host: /var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: container_name
+      - source_labels: ['__meta_docker_container_image']
+        regex: 'mimebookmark-(.*)'
+        target_label: app_image
