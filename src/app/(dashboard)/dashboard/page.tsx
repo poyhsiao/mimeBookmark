@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/button';
 import { FolderOpen, Tags, BookMarked, Plus } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { BookmarksSection } from '@/components/bookmarks/bookmarks-section';
+import { CollectionsSection } from '@/components/collections/collections-section';
+import { TagsSection } from '@/components/tags/tags-section';
+import Link from 'next/link';
 
 export default async function DashboardPage() {
   const { user } = await getCurrentUser();
@@ -65,6 +68,26 @@ export default async function DashboardPage() {
             <div className="text-2xl font-bold">{stats.tags}</div>
           </CardContent>
         </Card>
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">Recent Collections</h2>
+          <Link href="/dashboard/collections">
+            <Button variant="outline" size="sm">View All</Button>
+          </Link>
+        </div>
+        <CollectionsSection showHeader={false} limit={3} />
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">Recent Tags</h2>
+          <Link href="/dashboard/tags">
+            <Button variant="outline" size="sm">View All</Button>
+          </Link>
+        </div>
+        <TagsSection showHeader={false} limit={3} />
       </div>
 
       <div>
