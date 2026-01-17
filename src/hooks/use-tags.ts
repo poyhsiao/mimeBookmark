@@ -33,6 +33,8 @@ export interface UseTagsReturn {
   createTag: (tag: { name: string; color?: string }) => Promise<Tag | null>;
   updateTag: (id: string, updates: Partial<Tag>) => Promise<boolean>;
   deleteTag: (id: string) => Promise<boolean>;
+  addTagsToBookmark: (bookmarkId: string, tagIds: string[]) => Promise<boolean>;
+  removeTagsFromBookmark: (bookmarkId: string, tagIds: string[]) => Promise<boolean>;
 }
 
 export function useTags(): UseTagsReturn {
@@ -149,6 +151,57 @@ export function useTags(): UseTagsReturn {
     }
   }, []);
 
+  const addTagsToBookmark = useCallback(async (bookmarkId: string, tagIds: string[]): Promise<boolean> => {
+    setLoadingCount(c => c + 1);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/tags/bookmarks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookmark_id: bookmarkId, tag_ids: tagIds }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to add tags to bookmark');
+      }
+
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      return false;
+    } finally {
+      setLoadingCount(c => c - 1);
+    }
+  }, []);
+
+  const removeTagsFromBookmark = useCallback(async (bookmarkId: string, tagIds: string[]): Promise<boolean> => {
+    setLoadingCount(c => c + 1);
+    setError(null);
+
+    try {
+      const params = new URLSearchParams();
+      params.set('bookmark_id', bookmarkId);
+      tagIds.forEach(id => params.append('tag_ids', id));
+
+      const response = await fetch(`/api/tags/bookmarks?${params}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to remove tags from bookmark');
+      }
+
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      return false;
+    } finally {
+      setLoadingCount(c => c - 1);
+    }
+  }, []);
+
   return {
     tags,
     pagination,
@@ -158,5 +211,7 @@ export function useTags(): UseTagsReturn {
     createTag,
     updateTag,
     deleteTag,
+    addTagsToBookmark,
+    removeTagsFromBookmark,
   };
 }
