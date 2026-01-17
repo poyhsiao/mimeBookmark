@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
   const dateFrom = searchParams.get("date_from");
   const dateTo = searchParams.get("date_to");
   const domain = searchParams.get("domain");
-  const sortBy = searchParams.get("sort") || "relevance";
+  const sortBy = searchParams.get("sort") || "newest";
 
   if (!query || query.trim().length === 0) {
     return NextResponse.json(
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
     // Sanitize search term for PostgREST filter syntax
     const searchTerm = sanitizeSearchTerm(query);
 
-    if (sortBy === "newest") {
+    if (sortBy === "newest" || sortBy === "relevance") {
       searchQuery = searchQuery.order("created_at", { ascending: false });
     } else if (sortBy === "oldest") {
       searchQuery = searchQuery.order("created_at", { ascending: true });
@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
     } else if (sortBy === "clicks") {
       searchQuery = searchQuery.order("clicks", { ascending: false });
     } else {
-      // Default to sorting by created_at descending (relevance/newest)
+      // Default fallback
       searchQuery = searchQuery.order("created_at", { ascending: false });
     }
 
@@ -157,22 +157,6 @@ export async function GET(request: NextRequest) {
     console.error("Search error:", error);
     return NextResponse.json({ error: "Search failed" }, { status: 500 });
   }
-}
-
-function highlightText(text: string, query: string): string {
-  if (!text || !query) return text;
-
-  const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const regex = new RegExp(`(${escapedQuery})`, "gi");
-  return text.replace(regex, "<mark>$1</mark>");
-}
-
-function highlightUrl(url: string, query: string): string {
-  if (!url || !query) return url;
-
-  const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const regex = new RegExp(`(${escapedQuery})`, "gi");
-  return url.replace(regex, "<mark>$1</mark>");
 }
 
 function escapeHtml(text: string): string {
