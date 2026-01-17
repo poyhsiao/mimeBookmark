@@ -344,11 +344,10 @@ npm test
 ### 出现问题时联系
 
 **开发团队**:
-- 负责人: [您的名字]
-- 邮箱: [您的邮箱]
+- 负责人: Kim Hsiao
+- 邮箱: kim.hsiao@example.com
 
 **紧急联系**:
-- 值班电话: [电话号码]
 - Slack 频道: #bookmark-import-support
 
 ### 问题报告模板
