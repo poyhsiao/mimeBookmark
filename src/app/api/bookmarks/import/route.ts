@@ -136,19 +136,32 @@ export async function POST(request: NextRequest) {
     }
 
     // Import bookmarks
+    // Batch query: collect all bookmark URLs and check for existing ones in a single query
+    const bookmarkUrls = bookmarks.map(b => b.url).filter(Boolean);
+
+    // Build a map of existing bookmark URLs to their IDs
+    const existingUrlMap: Record<string, string> = {};
+    if (bookmarkUrls.length > 0) {
+      const { data: existingBookmarks } = await supabase
+        .from('bookmarks')
+        .select('id, url')
+        .eq('user_id', user.id)
+        .in('url', bookmarkUrls)
+        .is('deleted_at', null);
+
+      if (existingBookmarks) {
+        for (const eb of existingBookmarks) {
+          existingUrlMap[eb.url] = eb.id;
+        }
+      }
+    }
+
     for (const bookmark of bookmarks) {
       if (!bookmark.url) continue;
 
-      // Check for duplicates
-      const { data: existing } = await supabase
-        .from('bookmarks')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('url', bookmark.url)
-        .is('deleted_at', null)
-        .single();
-
-      if (existing) {
+      // Check for duplicates using the pre-built map
+      const existingId = existingUrlMap[bookmark.url];
+      if (existingId) {
         if (overwrite) {
           // Update existing bookmark
           const { error } = await supabase
@@ -166,7 +179,7 @@ export async function POST(request: NextRequest) {
               is_archived: bookmark.isArchived || false,
               updated_at: new Date().toISOString(),
             })
-            .eq('id', existing.id);
+            .eq('id', existingId);
 
           if (!error) {
             results.imported++;

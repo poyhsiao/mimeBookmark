@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Loader2, Upload, Download, FileJson, FileText, CheckCircle } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -145,24 +146,23 @@ export default function SettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex gap-4">
-              <Button
-                variant={exportFormat === 'json' ? 'default' : 'outline'}
-                onClick={() => setExportFormat('json')}
-                className="flex-1"
-              >
+            <ToggleGroup
+              type="single"
+              value={exportFormat}
+              onValueChange={(value) => {
+                if (value) setExportFormat(value as 'json' | 'html');
+              }}
+              className="w-full"
+            >
+              <ToggleGroupItem value="json" aria-label="Export as JSON">
                 <FileJson className="mr-2 h-4 w-4" />
                 JSON
-              </Button>
-              <Button
-                variant={exportFormat === 'html' ? 'default' : 'outline'}
-                onClick={() => setExportFormat('html')}
-                className="flex-1"
-              >
+              </ToggleGroupItem>
+              <ToggleGroupItem value="html" aria-label="Export as HTML">
                 <FileText className="mr-2 h-4 w-4" />
                 HTML
-              </Button>
-            </div>
+              </ToggleGroupItem>
+            </ToggleGroup>
             
             <Button
               onClick={handleExport}

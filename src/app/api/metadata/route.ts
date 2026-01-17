@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchMetadata } from '@/lib/metadata/metadata-service';
 import { promises as dnsPromises } from 'dns';
-import { isIP } from 'net';
+import { isIP, isIPv4, isIPv6 } from 'net';
 import { checkRateLimit } from './rate-limit';
 
 // Trusted proxy IPs/CIDRs that can set forwarding headers
@@ -149,16 +149,13 @@ function convertIPv4MappedHexToDecimal(hexPart: string): string | null {
 }
 
 function isPrivateIP(ip: string): boolean {
-  // Import net module for IP validation
-  const net = require('net');
-
   // Validate if it's a valid IP
-  if (!net.isIP(ip)) {
+  if (!isIP(ip)) {
     return false; // Not an IP, will be handled by hostname checks
   }
 
   // Check IPv4 private ranges
-  if (net.isIPv4(ip)) {
+  if (isIPv4(ip)) {
     const parts = ip.split('.').map(Number);
 
     // 0.0.0.0/8 - This network
@@ -183,7 +180,7 @@ function isPrivateIP(ip: string): boolean {
   }
 
   // Check IPv6 private ranges
-  if (net.isIPv6(ip)) {
+  if (isIPv6(ip)) {
     const lower = ip.toLowerCase();
 
     // ::1 - Loopback
@@ -214,7 +211,7 @@ function isPrivateIP(ip: string): boolean {
         }
 
         // Check if it's in dotted decimal format (x.x.x.x)
-        if (net.isIPv4(ipv4Part)) {
+        if (isIPv4(ipv4Part)) {
           return isPrivateIP(ipv4Part);
         }
 
@@ -259,7 +256,10 @@ async function isAllowedUrl(urlString: string): Promise<boolean> {
       return true;
     }
 
-    // Block common internal hostname patterns early (before DNS resolution)
+    // Block common internal hostname patterns early (before DNS resolution).
+    // This is an intentional, conservative optimization that may reject hostnames
+    // which merely start with IP-like prefixes (e.g., "10.example.com").
+    // Definitive verification happens later in the DNS resolution block below.
     const internalPatterns = [
       /^localhost$/i,
       /\.local$/i,
