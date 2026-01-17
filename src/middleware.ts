@@ -2,9 +2,8 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const startTime = Date.now();
-
 export async function middleware(request: NextRequest) {
+  const startTime = Date.now();
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

@@ -81,8 +81,8 @@ export class LokiTransport implements LogTransport {
     }
   }
 
-  private async sendBatch(entries: LogEntry[]): Promise<void> {
-    const lokiEntries = this.buildLokiPayload(entries);
+  private async sendBatch(entriesToSend: LogEntry[]): Promise<void> {
+    const lokiEntries = this.buildLokiPayload(entriesToSend);
     const body = JSON.stringify(lokiEntries);
 
     const headers = this.buildHeaders();
@@ -90,7 +90,7 @@ export class LokiTransport implements LogTransport {
     const lastError = await this.sendWithRetry(body, headers);
 
     if (lastError) {
-      this.batch.unshift(...entries);
+      this.batch.unshift(...entriesToSend);
       console.error(`Failed to send logs to Loki: ${lastError.message}`);
     }
   }
