@@ -12,6 +12,14 @@ interface CollectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  collection?: {
+    id: string;
+    name: string;
+    description: string | null;
+    color: string;
+    icon?: string;
+    parent_id?: string | null;
+  } | null;
 }
 
 const COLORS = [
@@ -31,8 +39,9 @@ export function CollectionModal({
   isOpen,
   onClose,
   onSuccess,
+  collection,
 }: CollectionModalProps) {
-  const { createCollection, loading } = useCollections();
+  const { createCollection, updateCollection, loading } = useCollections();
   const { toast } = useToast();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -42,12 +51,20 @@ export function CollectionModal({
   const colorButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   useEffect(() => {
-    if (!isOpen) {
-      setName("");
-      setDescription("");
-      setColor(COLORS[0]);
+    if (isOpen) {
+      if (collection) {
+        // Editing existing collection
+        setName(collection.name);
+        setDescription(collection.description || "");
+        setColor(collection.color);
+      } else {
+        // Creating new collection
+        setName("");
+        setDescription("");
+        setColor(COLORS[0]);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, collection]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,25 +78,50 @@ export function CollectionModal({
       return;
     }
 
-    const collection = await createCollection({
-      name: name.trim(),
-      description: description.trim() || undefined,
-      color,
-    });
-
     if (collection) {
-      toast({
-        title: "Collection created",
-        description: "Your collection has been created",
+      // Update existing collection
+      const success = await updateCollection(collection.id, {
+        name: name.trim(),
+        description: description.trim() || null,
+        color,
       });
-      handleClose();
-      onSuccess?.();
+
+      if (success) {
+        toast({
+          title: "Collection updated",
+          description: "Your collection has been updated",
+        });
+        handleClose();
+        onSuccess?.();
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to update collection",
+          variant: "destructive",
+        });
+      }
     } else {
-      toast({
-        title: "Error",
-        description: "Failed to create collection",
-        variant: "destructive",
+      // Create new collection
+      const newCollection = await createCollection({
+        name: name.trim(),
+        description: description.trim() || undefined,
+        color,
       });
+
+      if (newCollection) {
+        toast({
+          title: "Collection created",
+          description: "Your collection has been created",
+        });
+        handleClose();
+        onSuccess?.();
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to create collection",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -126,7 +168,7 @@ export function CollectionModal({
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title='Create Collection'
+      title={collection ? 'Edit Collection' : 'Create Collection'}
       footer={
         <>
           <Button variant='outline' onClick={handleClose} disabled={loading}>
@@ -136,12 +178,12 @@ export function CollectionModal({
             {loading ? (
               <>
                 <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                Creating...
+                {collection ? 'Updating...' : 'Creating...'}
               </>
             ) : (
               <>
                 <Plus className='mr-2 h-4 w-4' />
-                Create Collection
+                {collection ? 'Update Collection' : 'Create Collection'}
               </>
             )}
           </Button>
