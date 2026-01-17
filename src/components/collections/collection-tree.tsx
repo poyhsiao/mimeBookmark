@@ -56,6 +56,13 @@ function CollectionTreeItem({
   }, [showMenu]);
 
   const handleDelete = async () => {
+    if (
+      !confirm(
+        "Are you sure you want to delete this collection? Bookmarks will not be deleted.",
+      )
+    )
+      return;
+
     setIsDeleting(true);
     try {
       const success = await onDelete(node.id);
