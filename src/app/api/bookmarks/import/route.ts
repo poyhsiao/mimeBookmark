@@ -245,8 +245,8 @@ interface ParsedNetscapeResult {
 
 function parseNetscapeHtml(html: string): ParsedNetscapeResult {
   const bookmarks: any[] = [];
-  const tags: any[] = [];
   const collections: any[] = [];
+  const uniqueTagNames = new Set<string>(); // Use Set for deduplication
 
   try {
     const dom = new JSDOM(html);
@@ -263,17 +263,15 @@ function parseNetscapeHtml(html: string): ParsedNetscapeResult {
       const addDate = link.getAttribute('add_date');
       let createdAt = new Date().toISOString();
 
-      if (addDate) {
-        // Validate it's numeric
-        if (/^\d+$/.test(addDate)) {
-           const timestamp = parseInt(addDate, 10);
-           if (Number.isFinite(timestamp)) {
-             try {
-               createdAt = new Date(timestamp * 1000).toISOString();
-             } catch (e) {
-               // Fallback to now if invalid date
-             }
-           }
+      if (addDate && /^\d+$/.test(addDate)) {
+        // Validate it's numeric and parse
+        const timestamp = parseInt(addDate, 10);
+        if (Number.isFinite(timestamp)) {
+          try {
+            createdAt = new Date(timestamp * 1000).toISOString();
+          } catch (e) {
+            // Fallback to now if invalid date
+          }
         }
       }
 
@@ -306,6 +304,8 @@ function parseNetscapeHtml(html: string): ParsedNetscapeResult {
                const folderName = header.textContent?.trim();
                if (folderName && folderName !== 'Bookmarks' && folderName !== 'MimeBookmark Export') {
                  extractedTags.push(folderName);
+                 // Add to unique tags set
+                 uniqueTagNames.add(folderName);
                  // We only take the immediate folder as a tag for now, matching original behavior
                  break;
                }
@@ -326,6 +326,9 @@ function parseNetscapeHtml(html: string): ParsedNetscapeResult {
   } catch (e) {
     console.error('Error parsing HTML:', e);
   }
+
+  // Convert unique tag names to tags array
+  const tags = Array.from(uniqueTagNames).map(name => ({ name }));
 
   return { bookmarks, collections, tags };
 }

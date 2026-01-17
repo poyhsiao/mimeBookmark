@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
   // Fetch collections
   const { data: collections, error: collectionsError } = await supabase
     .from('collections')
-    .select('id, name, description, color, icon, parent_id')
+    .select('id, name, description, color, icon, parent_id, created_at')
     .eq('user_id', user.id)
     .is('deleted_at', null)
     .order('name');
@@ -125,7 +125,7 @@ function generateNetscapeHtml(bookmarks: any[], collections: any[], tags: any[],
 
     if (collectionBookmarks.length > 0) {
       bookmarkFolders += `
-    <DT><H3 ADD_DATE="${Math.floor(new Date(collection.created_at || now).getTime() / 1000)}" >${escapeHtml(collection.name)}</H3>
+    <DT><H3 ADD_DATE="${Math.floor(new Date(collection.created_at).getTime() / 1000)}" >${escapeHtml(collection.name)}</H3>
     <DL><p>
 ${collectionBookmarks.map((b: any) => generateBookmarkEntry(b)).join('\n')}
     </DL><p>

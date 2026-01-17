@@ -127,4 +127,34 @@ describe('Import Route', () => {
 
     expect(json.imported).toBe(1);
   });
+
+  test('should collect unique tags from bookmark folder structure', async () => {
+    const html = `
+      <!DOCTYPE NETSCAPE-Bookmark-file-1>
+      <DL><p>
+        <DT><H3>Work</H3>
+        <DL><p>
+          <DT><A HREF="http://work1.com">Work Link 1</A>
+          <DT><A HREF="http://work2.com">Work Link 2</A>
+        </DL><p>
+        <DT><H3>Personal</H3>
+        <DL><p>
+          <DT><A HREF="http://personal1.com">Personal Link</A>
+        </DL><p>
+        <DT><H3>Work</H3>
+        <DL><p>
+          <DT><A HREF="http://work3.com">Work Link 3</A>
+        </DL><p>
+      </DL><p>
+    `;
+
+    const req = createHtmlRequest(html);
+    const res = await POST(req);
+    const json = await res.json();
+
+    // Should import 4 bookmarks
+    expect(json.imported).toBe(4);
+    // Should create 2 unique tags: "Work" and "Personal"
+    expect(json.tagsCreated).toBe(2);
+  });
 });

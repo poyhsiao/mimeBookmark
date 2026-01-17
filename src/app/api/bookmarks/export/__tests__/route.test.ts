@@ -161,4 +161,53 @@ describe('Export Route', () => {
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).toContain('&quot;&gt; &lt;script&gt;alert(1)&lt;/script&gt;');
   });
+
+  test('should include created_at in collections query and use it in HTML export', async () => {
+    const specificDate = '2024-01-15T10:30:00.000Z';
+    const specificTimestamp = Math.floor(new Date(specificDate).getTime() / 1000);
+
+    const bookmarks = [
+      { id: 'b1', url: 'http://b1.com', title: 'B1', collection_id: 'c1', created_at: '2024-01-16T10:00:00.000Z' },
+    ];
+    const collections = [
+      { id: 'c1', name: 'Test Collection', created_at: specificDate },
+    ];
+
+    let collectionsSelectCalled = false;
+    let collectionsSelectFields = '';
+
+    mockSupabase.from.mockImplementation((table: string) => {
+      if (table === 'bookmarks') {
+        return {
+          select: () => ({ eq: () => ({ is: () => ({ order: vi.fn().mockResolvedValue({ data: bookmarks, error: null }) }) }) })
+        };
+      }
+      if (table === 'collections') {
+        return {
+          select: (fields: string) => {
+            collectionsSelectCalled = true;
+            collectionsSelectFields = fields;
+            return { eq: () => ({ is: () => ({ order: vi.fn().mockResolvedValue({ data: collections, error: null }) }) }) };
+          }
+        };
+      }
+      if (table === 'tags') {
+        return {
+          select: () => ({ eq: () => ({ is: () => ({ order: vi.fn().mockResolvedValue({ data: [], error: null }) }) }) })
+        };
+      }
+      return { select: vi.fn() };
+    });
+
+    const req = new NextRequest('http://localhost/api/bookmarks/export?format=html');
+    const res = await GET(req);
+    const html = await res.text();
+
+    // Verify that collections select was called with created_at field
+    expect(collectionsSelectCalled).toBe(true);
+    expect(collectionsSelectFields).toContain('created_at');
+
+    // Verify that the HTML uses the actual created_at timestamp, not now
+    expect(html).toContain(`ADD_DATE="${specificTimestamp}"`);
+  });
 });

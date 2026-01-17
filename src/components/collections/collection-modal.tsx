@@ -189,7 +189,7 @@ export function CollectionModal({
                 }}
                 type='button'
                 role='radio'
-                aria-checked={color === c}
+                aria-checked={color === c ? "true" : "false"}
                 tabIndex={color === c ? 0 : -1}
                 className={`w-8 h-8 rounded-full transition-transform color-btn-${index} ${
                   color === c
