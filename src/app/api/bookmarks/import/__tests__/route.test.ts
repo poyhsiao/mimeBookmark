@@ -31,6 +31,7 @@ describe('Import Route', () => {
     const mockChain = {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
+      in: vi.fn().mockReturnThis(),
       is: vi.fn().mockReturnThis(),
       ilike: vi.fn().mockReturnThis(),
       insert: vi.fn().mockReturnThis(),
@@ -64,10 +65,19 @@ describe('Import Route', () => {
         if (table === 'tags') {
             return {
                 ...mockChain,
-                single: vi.fn().mockResolvedValue({ data: null }), // tag not found
+                // For batch query with .in(): return empty array (no existing tags)
+                select: vi.fn().mockReturnValue({
+                  eq: vi.fn().mockReturnValue({
+                    in: vi.fn().mockReturnValue({
+                      is: vi.fn().mockResolvedValue({ data: [] })
+                    })
+                  })
+                }),
+                // For batch insert: return new tags with IDs
                 insert: vi.fn().mockReturnValue({
-                     select: vi.fn().mockReturnValue({
-                        single: vi.fn().mockResolvedValue({ data: { id: 'tag-id' }, error: null })
+                     select: vi.fn().mockResolvedValue({
+                        data: [{ id: 'work-tag', name: 'Work' }, { id: 'personal-tag', name: 'Personal' }],
+                        error: null
                      })
                 })
             };

@@ -1,6 +1,7 @@
 
 import { describe, expect, test, vi, beforeEach } from 'vitest';
-import { GET, requestLog, cleanupStaleEntries } from '../route';
+import { GET } from '../route';
+import { requestLog, cleanupStaleEntries } from '../rate-limit';
 import { NextRequest } from 'next/server';
 
 // Mock dependencies
@@ -43,7 +44,15 @@ describe('Metadata Route', () => {
     // We haven't mocked fetchMetadata result, but it shouldn't be blocked by validation
     // So status should be 200 if we mock fetchMetadata to succeed
     const { fetchMetadata } = await import('@/lib/metadata/metadata-service');
-    vi.mocked(fetchMetadata).mockResolvedValue({ title: 'Google' });
+    vi.mocked(fetchMetadata).mockResolvedValue({
+      title: 'Google',
+      description: 'Search engine',
+      image: 'https://google.com/image.png',
+      siteName: 'Google',
+      domain: 'google.com',
+      favicon: 'https://google.com/favicon.ico',
+      url: 'https://google.com',
+    });
 
     const req = createRequest('https://google.com');
     const res = await GET(req);
@@ -53,7 +62,15 @@ describe('Metadata Route', () => {
 
   test('should cleanup stale IP entries from requestLog', async () => {
     const { fetchMetadata } = await import('@/lib/metadata/metadata-service');
-    vi.mocked(fetchMetadata).mockResolvedValue({ title: 'Test' });
+    vi.mocked(fetchMetadata).mockResolvedValue({
+      title: 'Test',
+      description: 'Test site',
+      image: 'https://example.com/image.png',
+      siteName: 'Example',
+      domain: 'example.com',
+      favicon: 'https://example.com/favicon.ico',
+      url: 'https://example.com',
+    });
 
     const testIp = '192.168.1.100';
 
@@ -82,7 +99,15 @@ describe('Metadata Route', () => {
 
   test('should correctly parse x-forwarded-for header', async () => {
     const { fetchMetadata } = await import('@/lib/metadata/metadata-service');
-    vi.mocked(fetchMetadata).mockResolvedValue({ title: 'Test' });
+    vi.mocked(fetchMetadata).mockResolvedValue({
+      title: 'Test',
+      description: 'Test site',
+      image: 'https://example.com/image.png',
+      siteName: 'Example',
+      domain: 'example.com',
+      favicon: 'https://example.com/favicon.ico',
+      url: 'https://example.com',
+    });
 
     // Create a request with x-forwarded-for header containing multiple IPs
     const req = new NextRequest('http://localhost/api/metadata?url=https://example.com', {
@@ -195,7 +220,15 @@ describe('Metadata Route', () => {
 
   test('should allow IPv4-mapped IPv6 addresses with public IPv4', async () => {
     const { fetchMetadata } = await import('@/lib/metadata/metadata-service');
-    vi.mocked(fetchMetadata).mockResolvedValue({ title: 'Test' });
+    vi.mocked(fetchMetadata).mockResolvedValue({
+      title: 'Test',
+      description: 'Test site',
+      image: 'https://example.com/image.png',
+      siteName: 'Example',
+      domain: 'example.com',
+      favicon: 'https://example.com/favicon.ico',
+      url: 'https://example.com',
+    });
 
     // Public IP mapped to IPv6
     const publicMapped = 'http://[::ffff:8.8.8.8]/test'; // Google DNS

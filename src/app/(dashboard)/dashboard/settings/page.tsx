@@ -89,11 +89,21 @@ export default function SettingsPage() {
         body: formData,
       });
 
-      const result = await response.json();
-
       if (!response.ok) {
-        throw new Error(result.error || 'Import failed');
+        // Try to get error details from response text, fall back to status text
+        let errorMessage = `Import failed (status ${response.status})`;
+        try {
+          const errorText = await response.text();
+          if (errorText) {
+            errorMessage += `: ${errorText}`;
+          }
+        } catch {
+          // If reading text fails, just use the status-based message
+        }
+        throw new Error(errorMessage);
       }
+
+      const result = await response.json();
 
       setImportResult(result);
       toast({

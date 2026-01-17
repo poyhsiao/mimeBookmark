@@ -86,35 +86,51 @@ export async function POST(request: NextRequest) {
       collectionsCreated: 0,
     };
 
-    // Create tags first
+    // Create tags first using batch operations to avoid N+1 queries
     const tagNameToId: Record<string, string> = {};
-    for (const tag of tags) {
-      if (!tag.name) continue;
 
-      const { data: existingTag } = await supabase
+    // Normalize tag names and filter out empty ones
+    const tagNames = tags.map(t => t.name?.toLowerCase()).filter(Boolean);
+
+    if (tagNames.length > 0) {
+      // Batch query: fetch all existing tags at once
+      const { data: existingTags } = await supabase
         .from('tags')
-        .select('id')
+        .select('id, name')
         .eq('user_id', user.id)
-        .ilike('name', tag.name)
-        .is('deleted_at', null)
-        .single();
+        .in('name', tagNames)
+        .is('deleted_at', null);
 
-      if (existingTag) {
-        tagNameToId[tag.name.toLowerCase()] = existingTag.id;
-      } else {
-        const { data: newTag, error } = await supabase
+      // Populate map with existing tags
+      if (existingTags) {
+        for (const tag of existingTags) {
+          tagNameToId[tag.name.toLowerCase()] = tag.id;
+        }
+      }
+
+      // Find tags that need to be created (not in existingTags)
+      const tagsToCreate = tags.filter(
+        tag => tag.name && !tagNameToId[tag.name.toLowerCase()]
+      );
+
+      // Batch insert new tags
+      if (tagsToCreate.length > 0) {
+        const { data: insertedTags } = await supabase
           .from('tags')
-          .insert({
-            user_id: user.id,
-            name: tag.name,
-            color: tag.color || '#6B7280',
-          })
-          .select('id')
-          .single();
+          .insert(
+            tagsToCreate.map(tag => ({
+              user_id: user.id,
+              name: tag.name,
+              color: tag.color || '#6B7280',
+            }))
+          )
+          .select('id, name');
 
-        if (!error && newTag) {
-          tagNameToId[tag.name.toLowerCase()] = newTag.id;
-          results.tagsCreated++;
+        if (insertedTags) {
+          for (const tag of insertedTags) {
+            tagNameToId[tag.name.toLowerCase()] = tag.id;
+          }
+          results.tagsCreated += insertedTags.length;
         }
       }
     }
@@ -256,11 +272,12 @@ function parseNetscapeHtml(html: string): ParsedNetscapeResult {
         // Validate it's numeric and parse
         const timestamp = parseInt(addDate, 10);
         if (Number.isFinite(timestamp)) {
-          try {
-            createdAt = new Date(timestamp * 1000).toISOString();
-          } catch (e) {
-            // Fallback to now if invalid date
+          // Explicitly validate the Date before calling toISOString
+          const d = new Date(timestamp * 1000);
+          if (!isNaN(d.getTime()) && d.toString() !== 'Invalid Date') {
+            createdAt = d.toISOString();
           }
+          // If invalid date, keep the default (now)
         }
       }
 

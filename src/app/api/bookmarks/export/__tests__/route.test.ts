@@ -77,7 +77,7 @@ describe('Export Route', () => {
       }
       if (table === 'tags') {
          return {
-          select: () => ({ eq: () => ({ is: () => ({ order: vi.fn().mockResolvedValue({ data: [] }) }) }) })
+          select: () => ({ eq: () => ({ is: () => ({ order: vi.fn().mockResolvedValue({ data: [], error: null }) }) }) })
         };
       }
       return { select: vi.fn() };

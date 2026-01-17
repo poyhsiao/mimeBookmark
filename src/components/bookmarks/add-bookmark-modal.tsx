@@ -193,8 +193,9 @@ export function AddBookmarkModal({ isOpen, onClose, onSuccess }: AddBookmarkModa
                 src={favicon}
                 alt=""
                 className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
+                onError={() => {
+                  // Clear the favicon state to remove the img from DOM
+                  setFavicon('');
                 }}
               />
             )}

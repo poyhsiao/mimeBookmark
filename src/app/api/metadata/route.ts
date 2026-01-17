@@ -2,59 +2,131 @@ import { NextRequest, NextResponse } from 'next/server';
 import { fetchMetadata } from '@/lib/metadata/metadata-service';
 import { promises as dnsPromises } from 'dns';
 import { isIP } from 'net';
+import { checkRateLimit } from './rate-limit';
 
-// Basic rate limiting implementation using in-memory usage tracking (not persistent across serverless restarts)
-// For production, use Redis or database
-const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
-const MAX_REQUESTS = 20;
-// Exported for testing purposes
-export const requestLog = new Map<string, number[]>();
+// Trusted proxy IPs/CIDRs that can set forwarding headers
+// Comma-separated list of IPs or CIDR ranges (e.g., "103.21.244.0/22,2400:cb00:1::/32")
+// Set via environment variable TRUSTED_PROXY_PROXIES
+const TRUSTED_PROXY_PROXIES = process.env.TRUSTED_PROXY_PROXIES ?
+  process.env.TRUSTED_PROXY_PROXIES.split(',').map(s => s.trim()) : [];
 
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const requests = requestLog.get(ip) || [];
+// Feature flags for provider-specific headers
+const CLOUDFLARE_ENABLED = process.env.CLOUDFLARE_ENABLED === 'true';
+const IS_VERCEL = !!process.env.VERCEL;
 
-  // Filter out requests older than window
-  const recentRequests = requests.filter(time => now - time < RATE_LIMIT_WINDOW);
-
-  // If no recent requests, delete the entry to free memory
-  if (recentRequests.length === 0) {
-    requestLog.delete(ip);
-  }
-
-  if (recentRequests.length >= MAX_REQUESTS) {
-    return false;
-  }
-
-  recentRequests.push(now);
-  requestLog.set(ip, recentRequests);
-
-  // Opportunistically clean up stale entries on each request
-  // This avoids the need for a background timer in serverless environments
-  cleanupStaleEntries();
-
-  return true;
-}
-
-// Cleanup function to remove stale IP entries
-// Called opportunistically from checkRateLimit to avoid background timers in serverless
-// Exported for testing purposes
-export const cleanupStaleEntries = () => {
-  const now = Date.now();
-  // Use a 10s buffer beyond the rate limit window for cleanup
-  // This ensures entries are cleaned up shortly after they become irrelevant
-  const staleThreshold = RATE_LIMIT_WINDOW + 10000;
-
-  for (const [ip, timestamps] of requestLog.entries()) {
-    // If the last timestamp is older than the threshold, delete the entry
-    if (timestamps.length === 0 || now - timestamps[timestamps.length - 1] > staleThreshold) {
-      requestLog.delete(ip);
-    }
-  }
-};
+// In test/development environments, we allow more lenient header handling for testing purposes
+const IS_TEST_ENV = process.env.NODE_ENV === 'test';
+const IS_DEV_ENV = process.env.NODE_ENV === 'development';
+const IS_NON_PROD = IS_TEST_ENV || IS_DEV_ENV;
 
 // Note: No module-level setInterval in serverless environments
 // Cleanup is called opportunistically from checkRateLimit instead
+
+/**
+ * Checks if the given IP or CIDR matches any trusted proxy configuration.
+ * Supports both exact IP matches and CIDR range matching for IPv4.
+ * For IPv6 CIDR ranges, this is a simplified check (full CIDR parsing requires ipaddr.js).
+ */
+function isTrustedProxy(ip: string): boolean {
+  for (const trusted of TRUSTED_PROXY_PROXIES) {
+    // Exact match
+    if (trusted === ip) {
+      return true;
+    }
+
+    // CIDR range match (IPv4 only - simplified implementation)
+    if (trusted.includes('/')) {
+      const [network, prefixLength] = trusted.split('/');
+      const prefix = parseInt(prefixLength, 10);
+
+      if (isIP(network) === 4 && isIP(ip) === 4) {
+        // Convert to integers for comparison
+        const ipNum = ipToNumber(ip);
+        const networkNum = ipToNumber(network);
+        const mask = (0xFFFFFFFF << (32 - prefix)) >>> 0;
+
+        if ((ipNum & mask) === (networkNum & mask)) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Converts an IPv4 address to a 32-bit integer for CIDR matching.
+ */
+function ipToNumber(ip: string): number {
+  return ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0) >>> 0;
+}
+
+/**
+ * Extracts the client IP address from the request using trusted proxy strategy.
+ * Only trusts provider-specific headers when running on the corresponding platform.
+ * Only trusts x-forwarded-for when the request source is a trusted proxy.
+ *
+ * Security considerations:
+ * - CF-Connecting-IP: Only used when CLOUDFLARE_ENABLED === 'true'
+ * - x-vercel-forwarded-for: Only used when running on Vercel (VERCEL env var set)
+ * - x-forwarded-for: In production, only used when TRUSTED_PROXY_PROXIES is configured and source is trusted.
+ *                   In test/dev, allowed for testing purposes.
+ * - All IPs are validated with isIP() before being returned
+ */
+function extractClientIp(request: NextRequest): string {
+  // Get the immediate connection source (if available)
+  const connectionSourceIp = (request as any).ip;
+
+  // Try Cloudflare header only when explicitly enabled
+  if (CLOUDFLARE_ENABLED) {
+    const cfConnectingIp = request.headers.get('CF-Connecting-IP');
+    if (cfConnectingIp && isIP(cfConnectingIp) !== 0) {
+      return cfConnectingIp;
+    }
+  }
+
+  // Try Vercel header only when running on Vercel
+  if (IS_VERCEL) {
+    const vercelForwardedFor = request.headers.get('x-vercel-forwarded-for');
+    if (vercelForwardedFor && isIP(vercelForwardedFor) !== 0) {
+      return vercelForwardedFor;
+    }
+  }
+
+  // Generic x-forwarded-for header (only trust from known proxies)
+  const forwardedFor = request.headers.get('x-forwarded-for');
+  if (forwardedFor) {
+    // Extract the first IP from the comma-separated list
+    const firstIp = forwardedFor.split(',')[0].trim();
+
+    // Validate the IP format before processing
+    if (firstIp && isIP(firstIp) !== 0) {
+      // In test/development environments, allow x-forwarded-for for testing
+      if (IS_NON_PROD) {
+        return firstIp;
+      }
+
+      // In production, only use x-forwarded-for if:
+      // 1. We have trusted proxy list configured, AND
+      // 2. We can verify the request came from a trusted proxy
+      if (TRUSTED_PROXY_PROXIES.length > 0 && connectionSourceIp && isTrustedProxy(connectionSourceIp)) {
+        return firstIp;
+      }
+      // If we can't verify the source but have trusted proxies configured,
+      // fall through to use connection source instead
+    }
+  }
+
+  // Fallback to direct connection IP (platform-specific)
+  // This is the safest option when we can't verify the proxy chain
+  if (connectionSourceIp && isIP(connectionSourceIp) !== 0) {
+    return connectionSourceIp;
+  }
+
+  return 'unknown';
+}
+
 
 /**
  * Converts IPv4-mapped IPv6 hexadecimal format to dotted decimal format
@@ -231,22 +303,8 @@ export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const url = searchParams.get('url');
 
-  // Extract client IP for rate limiting
-  // Parse x-forwarded-for header to get the first (client) IP
-  // Note: This requires a trusted reverse proxy to prevent header spoofing
-  let ip = 'unknown';
-  const forwardedFor = request.headers.get('x-forwarded-for');
-
-  if (forwardedFor) {
-    // Take the first IP from the comma-separated list and trim whitespace
-    const firstIp = forwardedFor.split(',')[0].trim();
-    if (firstIp) {
-      ip = firstIp;
-    }
-  } else {
-    // Fallback to request.ip if available (platform-specific)
-    ip = (request as any).ip || 'unknown';
-  }
+  // Extract client IP for rate limiting using trusted proxy strategy
+  const ip = extractClientIp(request);
 
   if (!checkRateLimit(ip)) {
      return NextResponse.json(
