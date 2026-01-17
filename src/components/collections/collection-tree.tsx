@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef } from 'react';
-import { CollectionNode } from '@/hooks/use-collections';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { useState, useEffect, useRef } from "react";
+import { CollectionNode } from "@/hooks/use-collections";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import {
   ChevronRight,
   ChevronDown,
@@ -15,7 +15,7 @@ import {
   Edit,
   Copy,
   GripVertical,
-} from 'lucide-react';
+} from "lucide-react";
 
 interface CollectionTreeItemProps {
   node: CollectionNode;
@@ -49,9 +49,9 @@ function CollectionTreeItem({
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [showMenu]);
 
@@ -62,21 +62,21 @@ function CollectionTreeItem({
 
       if (success) {
         toast({
-          title: 'Deleted',
-          description: 'Collection has been deleted',
+          title: "Deleted",
+          description: "Collection has been deleted",
         });
       } else {
         toast({
-          title: 'Error',
-          description: 'Failed to delete collection',
-          variant: 'destructive',
+          title: "Error",
+          description: "Failed to delete collection",
+          variant: "destructive",
         });
       }
     } catch {
       toast({
-        title: 'Error',
-        description: 'Failed to delete collection',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to delete collection",
+        variant: "destructive",
       });
     } finally {
       setIsDeleting(false);
@@ -87,18 +87,18 @@ function CollectionTreeItem({
   const handleCopyLink = async () => {
     try {
       await navigator.clipboard.writeText(
-        `${window.location.origin}/dashboard/collections/${node.id}`
+        `${window.location.origin}/dashboard/collections/${node.id}`,
       );
       toast({
-        title: 'Copied!',
-        description: 'Collection link copied to clipboard',
+        title: "Copied!",
+        description: "Collection link copied to clipboard",
       });
       setShowMenu(false);
     } catch {
       toast({
-        title: 'Copy failed',
-        description: 'Could not copy link. Please copy manually.',
-        variant: 'destructive',
+        title: "Copy failed",
+        description: "Could not copy link. Please copy manually.",
+        variant: "destructive",
       });
     }
   };
@@ -120,7 +120,7 @@ function CollectionTreeItem({
           type='button'
           className='p-0.5 hover:bg-muted rounded transition-colors'
           onClick={() => setIsExpanded(!isExpanded)}
-          aria-label={isExpanded ? 'Collapse' : 'Expand'}
+          aria-label={isExpanded ? "Collapse" : "Expand"}
         >
           {node.children.length > 0 ? (
             isExpanded ? (
@@ -166,8 +166,8 @@ function CollectionTreeItem({
             <Star
               className={`h-4 w-4 ${
                 node.is_favorite
-                  ? 'fill-yellow-500 text-yellow-500'
-                  : 'text-muted-foreground'
+                  ? "fill-yellow-500 text-yellow-500"
+                  : "text-muted-foreground"
               }`}
             />
           </Button>
@@ -186,7 +186,10 @@ function CollectionTreeItem({
             </Button>
 
             {showMenu && (
-              <div ref={menuRef} className='absolute right-0 top-full mt-1 w-48 bg-popover border rounded-lg shadow-lg z-10 py-1'>
+              <div
+                ref={menuRef}
+                className='absolute right-0 top-full mt-1 w-48 bg-popover border rounded-lg shadow-lg z-10 py-1'
+              >
                 <button
                   type='button'
                   className='w-full px-4 py-2 text-left text-sm hover:bg-accent flex items-center gap-2'
@@ -253,27 +256,25 @@ function CollectionTreeItem({
       {/* Move to collection modal - TODO: Replace with proper accessible modal */}
       {showMoveModal && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          className='fixed inset-0 bg-black/50 flex items-center justify-center z-50'
           onClick={() => setShowMoveModal(false)}
         >
           <div
-            className="bg-popover border rounded-lg shadow-lg p-6 max-w-md w-full mx-4"
+            className='bg-popover border rounded-lg shadow-lg p-6 max-w-md w-full mx-4'
             onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-labelledby="move-modal-title"
-            aria-modal="true"
+            role='dialog'
+            aria-labelledby='move-modal-title'
+            aria-modal='true'
           >
-            <h2 id="move-modal-title" className="text-lg font-semibold mb-4">
+            <h2 id='move-modal-title' className='text-lg font-semibold mb-4'>
               Move Collection
             </h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              This feature is under development. Please use the "Move to root" option for now.
+            <p className='text-sm text-muted-foreground mb-4'>
+              This feature is under development. Please use the &quot;Move to
+              root&quot; option for now.
             </p>
-            <div className="flex gap-2 justify-end">
-              <Button
-                variant="outline"
-                onClick={() => setShowMoveModal(false)}
-              >
+            <div className='flex gap-2 justify-end'>
+              <Button variant='outline' onClick={() => setShowMoveModal(false)}>
                 Cancel
               </Button>
             </div>

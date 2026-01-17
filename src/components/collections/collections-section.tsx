@@ -161,17 +161,14 @@ export function CollectionsSection({
         </div>
       )}
 
-      {loading && collections.length === 0 ? (
+      {loading &&
+      (viewMode === "tree" ? tree.length === 0 : collections.length === 0) ? (
         <div className='flex items-center justify-center py-12'>
           <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
         </div>
       ) : viewMode === "tree" ? (
         <>
-          {loading ? (
-            <div className='flex items-center justify-center py-12'>
-              <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
-            </div>
-          ) : tree.length === 0 ? (
+          {tree.length === 0 ? (
             <div className='text-center py-12'>
               <h3 className='text-lg font-medium'>No collections yet</h3>
               <p className='text-muted-foreground mt-1'>
