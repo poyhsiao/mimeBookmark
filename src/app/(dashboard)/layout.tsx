@@ -8,6 +8,7 @@ import { signOut } from '@/lib/auth/client';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { BookMarked, LayoutDashboard, FolderOpen, Tags, Settings, LogOut, User } from 'lucide-react';
+import { AnalyticsProvider } from '@/lib/analytics';
 
 export default function DashboardLayout({
   children,
@@ -37,6 +38,7 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-background">
+      <AnalyticsProvider />
       {/* Sidebar */}
       <aside className="fixed inset-y-0 left-0 w-64 border-r bg-card">
         <div className="flex flex-col h-full">
