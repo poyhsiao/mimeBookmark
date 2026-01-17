@@ -148,7 +148,7 @@ export function CollectionModal({
                 key={c}
                 type='button'
                 role='radio'
-                aria-checked={color === c ? 'true' : 'false'}
+                aria-checked={color === c}
                 tabIndex={color === c ? 0 : -1}
                 className={`w-8 h-8 rounded-full transition-transform color-btn-${COLORS.indexOf(
                   c

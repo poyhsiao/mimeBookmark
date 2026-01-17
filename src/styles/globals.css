@@ -74,5 +74,13 @@
     background-color: var(--tag-bg, rgba(0, 0, 0, 0.1));
     color: var(--tag-color, inherit);
   }
+
+  .collection-card-icon {
+    background-color: var(--collection-bg, rgba(0, 0, 0, 0.1));
+  }
+
+  .dynamic-icon-color {
+    color: var(--icon-color, inherit);
+  }
 }
 
