@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { CollectionTree } from "../collection-tree";
-import { expect, test, vi, beforeEach } from "vitest";
+import { expect, test, vi, beforeEach, describe } from "vitest";
 
 const mockTree = [
   {
