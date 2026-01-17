@@ -28,44 +28,50 @@ check() {
     fi
 }
 
+# grep 检查辅助函数 - 安全地执行 grep 并返回退出码
+grep_check() {
+    local pattern=$1
+    local file=$2
+    local message=$3
+    local exit_code
+
+    # 临时禁用 errexit 以捕获 grep 的退出码
+    set +e
+    grep -q "$pattern" "$file"
+    exit_code=$?
+    set -e
+
+    check $exit_code "$message"
+}
+
 # 1. 检查所有修复点
 echo "1. 验证代码修复点..."
 echo "-----------------------------------"
 
 # 检查标签类型验证
-grep -q "typeof t.name === 'string'" src/app/api/bookmarks/import/route.ts
-check $? "标签类型验证 (第 96-98 行)"
+grep_check "typeof t.name === 'string'" src/app/api/bookmarks/import/route.ts "标签类型验证 (第 96-98 行)"
 
-grep -q "typeof tag.name !== 'string'" src/app/api/bookmarks/import/route.ts
-check $? "标签去重验证 (第 120 行)"
+grep_check "typeof tag.name !== 'string'" src/app/api/bookmarks/import/route.ts "标签去重验证 (第 120 行)"
 
-grep -q "typeof tagName !== 'string'" src/app/api/bookmarks/import/route.ts
-check $? "标签链接验证 (第 215, 279 行)"
+grep_check "typeof tagName !== 'string'" src/app/api/bookmarks/import/route.ts "标签链接验证 (第 215, 279 行)"
 
 # 检查配额计数器
-grep -q "let newInserts = 0" src/app/api/bookmarks/import/route.ts
-check $? "newInserts 计数器 (第 90 行)"
+grep_check "let newInserts = 0" src/app/api/bookmarks/import/route.ts "newInserts 计数器 (第 90 行)"
 
-grep -q "profile.bookmarks_count + newInserts" src/app/api/bookmarks/import/route.ts
-check $? "配额检查逻辑 (第 244 行)"
+grep_check "profile.bookmarks_count + newInserts" src/app/api/bookmarks/import/route.ts "配额检查逻辑 (第 244 行)"
 
-grep -q "newInserts++" src/app/api/bookmarks/import/route.ts
-check $? "新插入计数递增 (第 294 行)"
+grep_check "newInserts++" src/app/api/bookmarks/import/route.ts "新插入计数递增 (第 294 行)"
 
 # 检查错误处理
-grep -q "results.errors.push.*Failed to update" src/app/api/bookmarks/import/route.ts
-check $? "更新错误处理 (第 206 行)"
+grep_check "results.errors.push.*Failed to update" src/app/api/bookmarks/import/route.ts "更新错误处理 (第 206 行)"
 
 # 检查标签应用
-grep -q "Apply tag links for overwritten bookmarks" src/app/api/bookmarks/import/route.ts
-check $? "覆盖时标签应用 (第 210-235 行)"
+grep_check "Apply tag links for overwritten bookmarks" src/app/api/bookmarks/import/route.ts "覆盖时标签应用 (第 210-235 行)"
 
 # 检查 OG 元数据
-grep -q "og_title: bookmark.ogTitle" src/app/api/bookmarks/import/route.ts
-check $? "OG 元数据插入 (第 259-260 行)"
+grep_check "og_title: bookmark.ogTitle" src/app/api/bookmarks/import/route.ts "OG 元数据插入 (第 259-260 行)"
 
-grep -q "bookmark.ogTitle || bookmark.og_title" src/app/api/bookmarks/import/route.ts
-check $? "OG 元数据更新 (第 195-196 行)"
+grep_check "bookmark.ogTitle || bookmark.og_title" src/app/api/bookmarks/import/route.ts "OG 元数据更新 (第 195-196 行)"
 
 echo ""
 
@@ -148,10 +154,15 @@ echo "-----------------------------------"
 
 # 检查是否有语法错误
 if command -v npx &> /dev/null; then
-    npx tsc --noEmit src/app/api/bookmarks/import/route.ts 2>&1 | grep -q "error" && {
-        echo -e "${RED}✗${NC} TypeScript 编译错误"
+    if npx tsc --noEmit src/app/api/bookmarks/import/route.ts 2>&1; then
+        echo -e "${GREEN}✓${NC} TypeScript 编译通过"
+    else
+        TSC_EXIT_CODE=$?
+        echo -e "${RED}✗${NC} TypeScript 编译错误 (退出码: $TSC_EXIT_CODE)"
+        echo "编译器输出:"
+        npx tsc --noEmit src/app/api/bookmarks/import/route.ts 2>&1
         exit 1
-    } || echo -e "${GREEN}✓${NC} TypeScript 编译通过"
+    fi
 else
     echo -e "${YELLOW}⚠${NC} TypeScript 编译器未找到,跳过检查"
 fi

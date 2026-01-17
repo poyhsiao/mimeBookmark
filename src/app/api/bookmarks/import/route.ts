@@ -42,9 +42,34 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      bookmarks = data.bookmarks || [];
-      collections = data.collections || [];
-      tags = data.tags || [];
+
+      // Validate that bookmarks, collections, and tags are arrays
+      const rawBookmarks = data.bookmarks;
+      const rawCollections = data.collections;
+      const rawTags = data.tags;
+
+      if (rawBookmarks !== undefined && !Array.isArray(rawBookmarks)) {
+        return NextResponse.json(
+          { error: 'Invalid bookmarks format: must be an array' },
+          { status: 400 }
+        );
+      }
+      if (rawCollections !== undefined && !Array.isArray(rawCollections)) {
+        return NextResponse.json(
+          { error: 'Invalid collections format: must be an array' },
+          { status: 400 }
+        );
+      }
+      if (rawTags !== undefined && !Array.isArray(rawTags)) {
+        return NextResponse.json(
+          { error: 'Invalid tags format: must be an array' },
+          { status: 400 }
+        );
+      }
+
+      bookmarks = rawBookmarks || [];
+      collections = rawCollections || [];
+      tags = rawTags || [];
     } else if (
       contentType === 'text/html' ||
       contentType === 'application/xhtml+xml' ||
@@ -136,7 +161,7 @@ export async function POST(request: NextRequest) {
       const tagsToCreate = Array.from(uniqueTagsMap.values());
 
       if (tagsToCreate.length > 0) {
-        const { data: insertedTags } = await supabase
+        const { data: insertedTags, error: insertError } = await supabase
           .from('tags')
           .insert(
             tagsToCreate.map(tag => ({
@@ -146,6 +171,19 @@ export async function POST(request: NextRequest) {
             }))
           )
           .select('id, name');
+
+        if (insertError) {
+          console.error(
+            `Failed to create tags for user ${user.id}:`,
+            insertError,
+            'Tags:',
+            tagsToCreate.map(t => t.name)
+          );
+          return NextResponse.json(
+            { error: 'Failed to create tags' },
+            { status: 500 }
+          );
+        }
 
         if (insertedTags) {
           for (const tag of insertedTags) {
@@ -157,8 +195,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Import bookmarks
-    // Batch query: collect all bookmark URLs and check for existing ones in a single query
-    const bookmarkUrls = bookmarks.map(b => b.url).filter(Boolean);
+    // Validate URL protocols first to filter out unsafe schemes
+    const safeBookmarks = bookmarks.filter((bookmark) => {
+      if (!bookmark.url) return false;
+
+      try {
+        const url = new URL(bookmark.url);
+        // Only allow http: and https: protocols
+        return url.protocol === 'http:' || url.protocol === 'https:';
+      } catch {
+        // Invalid URL format
+        return false;
+      }
+    });
+
+    // Batch query: collect all safe bookmark URLs and check for existing ones
+    const bookmarkUrls = safeBookmarks.map(b => b.url).filter(Boolean);
 
     // Build a map of existing bookmark URLs to their IDs
     const existingUrlMap: Record<string, string> = {};
@@ -177,7 +229,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    for (const bookmark of bookmarks) {
+    for (const bookmark of safeBookmarks) {
       if (!bookmark.url) continue;
 
       // Check for duplicates using the pre-built map
