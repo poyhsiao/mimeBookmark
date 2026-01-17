@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const searchParams = request.nextUrl.searchParams;
+  const { searchParams } = request.nextUrl;
   const format = searchParams.get('format') || 'json';
 
   const supabase = await createClient();
@@ -19,9 +19,9 @@ export async function GET(request: NextRequest) {
   const { data: bookmarks, error } = await supabase
     .from('bookmarks')
     .select(`
-      id, url, title, description, domain, favicon_url, og_image, 
+      id, url, title, description, domain, favicon_url, og_image,
       og_title, og_description, is_favorite, is_archived,
-      created_at, updated_at, user_notes, user_rating,
+      created_at, updated_at, user_notes, user_rating, collection_id,
       tags:bookmark_tags(tags(id, name, color))
     `)
     .eq('user_id', user.id)
@@ -36,14 +36,14 @@ export async function GET(request: NextRequest) {
   }
 
   // Fetch collections
-  const { data: collections } = await supabase
+  const { data: collections, error: collectionsError } = await supabase
     .from('collections')
     .select('id, name, description, color, icon, parent_id')
     .eq('user_id', user.id)
     .is('deleted_at', null)
     .order('name');
 
-  if (error) {
+  if (collectionsError) {
     return NextResponse.json(
       { error: 'Failed to fetch collections' },
       { status: 500 }
@@ -60,12 +60,12 @@ export async function GET(request: NextRequest) {
 
   if (format === 'html') {
     const html = generateNetscapeHtml(
-      bookmarks || [], 
-      collections || [], 
-      tags || [], 
+      bookmarks || [],
+      collections || [],
+      tags || [],
       user.email || 'User'
     );
-    
+
     return new NextResponse(html, {
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
@@ -116,24 +116,26 @@ export async function GET(request: NextRequest) {
 // Generate Netscape bookmark HTML format
 function generateNetscapeHtml(bookmarks: any[], collections: any[], tags: any[], userEmail: string): string {
   const now = new Date().toISOString();
-  
+
   let bookmarkFolders = '';
 
   // Generate folder for each collection
   for (const collection of collections) {
-    const collectionBookmarks = bookmarks;
+    const collectionBookmarks = bookmarks.filter((b: any) => b.collection_id === collection.id);
 
-    bookmarkFolders += `
+    if (collectionBookmarks.length > 0) {
+      bookmarkFolders += `
     <DT><H3 ADD_DATE="${Math.floor(new Date(collection.created_at || now).getTime() / 1000)}" >${escapeHtml(collection.name)}</H3>
     <DL><p>
 ${collectionBookmarks.map((b: any) => generateBookmarkEntry(b)).join('\n')}
     </DL><p>
 `;
+    }
   }
 
   // Generate folder for unorganized bookmarks
-  const unorganizedBookmarks = bookmarks.filter((b: any) => !b.is_archived);
-  
+  const unorganizedBookmarks = bookmarks.filter((b: any) => !b.collection_id && !b.is_archived);
+
   return `<!DOCTYPE NETSCAPE-Bookmark-file-1>
 <!-- This is an automatically generated file.
      It will be read and overwritten.
@@ -157,7 +159,7 @@ function generateBookmarkEntry(bookmark: any): string {
   const addDate = Math.floor(new Date(bookmark.created_at || Date.now()).getTime() / 1000);
   const title = escapeHtml(bookmark.title || bookmark.url);
   const url = escapeHtml(bookmark.url);
-  const icon = bookmark.favicon_url ? `ICON="${bookmark.favicon_url}"` : '';
+  const icon = bookmark.favicon_url ? `ICON="${escapeHtml(bookmark.favicon_url)}"` : '';
 
   return `    <DT><A HREF="${url}" ADD_DATE="${addDate}" ${icon}>${title}</A>`;
 }

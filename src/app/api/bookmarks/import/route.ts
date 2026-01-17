@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getCurrentUser } from '@/lib/auth/server';
+import { JSDOM } from 'jsdom';
 
 export async function POST(request: NextRequest) {
   const { user } = await getCurrentUser();
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
     // Skip duplicates check if not overwriting
     if (!overwrite && existingBookmarks > availableSpace) {
       return NextResponse.json(
-        { 
+        {
           error: 'Not enough storage space',
           details: {
             currentCount: profile.bookmarks_count,
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
     const tagNameToId: Record<string, string> = {};
     for (const tag of tags) {
       if (!tag.name) continue;
-      
+
       const { data: existingTag } = await supabase
         .from('tags')
         .select('id')
@@ -203,7 +204,7 @@ export async function POST(request: NextRequest) {
       // Link tags
       if (bookmark.tags && bookmark.tags.length > 0 && newBookmark) {
         const tagLinks: { bookmark_id: string; tag_id: string }[] = [];
-        
+
         for (const tagName of bookmark.tags) {
           const tagId = tagNameToId[tagName.toLowerCase()];
           if (tagId) {
@@ -241,55 +242,91 @@ interface ParsedNetscapeResult {
   tags: any[];
 }
 
+
 function parseNetscapeHtml(html: string): ParsedNetscapeResult {
   const bookmarks: any[] = [];
   const tags: any[] = [];
   const collections: any[] = [];
 
-  // Extract all anchor tags with their attributes
-  const linkRegex = /<A\s+HREF="([^"]*)"\s+ADD_DATE="([^"]*)"(?:\s+ICON="([^"]*)")?[^>]*>([^<]*)<\/A>/gi;
-  let match;
+  try {
+    const dom = new JSDOM(html);
+    const doc = dom.window.document;
+    const links = doc.querySelectorAll('a');
 
-  while ((match = linkRegex.exec(html)) !== null) {
-    const [, url, addDate, icon, title] = match;
-    
-    if (url && !url.startsWith('javascript:') && !url.startsWith('mailto:')) {
+    links.forEach((link) => {
+      const href = link.getAttribute('href');
+      if (!href || href.startsWith('javascript:') || href.startsWith('mailto:')) {
+        return;
+      }
+
+      // Safe date parsing
+      const addDate = link.getAttribute('add_date');
+      let createdAt = new Date().toISOString();
+
+      if (addDate) {
+        // Validate it's numeric
+        if (/^\d+$/.test(addDate)) {
+           const timestamp = parseInt(addDate, 10);
+           if (Number.isFinite(timestamp)) {
+             try {
+               createdAt = new Date(timestamp * 1000).toISOString();
+             } catch (e) {
+               // Fallback to now if invalid date
+             }
+           }
+        }
+      }
+
+      const icon = link.getAttribute('icon');
+      const title = link.textContent?.trim() || href;
+
+      // Extract tags from folder structure
+      // A -> DT -> DL -> prevSibling (DT with H3)
+      // OR A -> DL -> prevSibling (DT with H3) (if DT is missing)
+      const extractedTags: string[] = [];
+      let current = link.parentElement;
+
+      // Traverse up to find the containing folder
+      // Netscape structure: <DT><H3>Folder</H3><DL>...items...</DL>
+      // Browser exports might vary slightly, but generally link is inside a DL,
+      // and that DL is preceded by a Header.
+
+      while (current) {
+        if (current.tagName === 'DL') {
+          // Look at previous element for the header
+          const prev = current.previousElementSibling;
+          if (prev) {
+             // It might be a DT containing H3, or just H3
+             let header = prev.querySelector('h3');
+             if (!header && prev.tagName === 'H3') {
+               header = prev as unknown as HTMLHeadingElement;
+             }
+
+             if (header) {
+               const folderName = header.textContent?.trim();
+               if (folderName && folderName !== 'Bookmarks' && folderName !== 'MimeBookmark Export') {
+                 extractedTags.push(folderName);
+                 // We only take the immediate folder as a tag for now, matching original behavior
+                 break;
+               }
+             }
+          }
+        }
+        current = current.parentElement;
+      }
+
       bookmarks.push({
-        url: decodeHtmlEntities(url),
-        title: decodeHtmlEntities(title || url),
+        url: href,
+        title: title,
         favicon: icon || null,
-        createdAt: new Date(parseInt(addDate) * 1000).toISOString(),
-        tags: extractTagsFromContext(html, match.index),
+        createdAt: createdAt,
+        tags: extractedTags,
       });
-    }
+    });
+  } catch (e) {
+    console.error('Error parsing HTML:', e);
   }
 
   return { bookmarks, collections, tags };
 }
 
-function decodeHtmlEntities(text: string): string {
-  return text
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ');
-}
-
-function extractTagsFromContext(html: string, matchIndex: number): string[] {
-  // Look for tags in surrounding context (between <H3> and the link)
-  const contextStart = Math.max(0, matchIndex - 500);
-  const context = html.substring(contextStart, matchIndex);
-  
-  // Extract tag names from folder names (simplified approach)
-  const folderMatch = context.match(/<H3[^>]*>([^<]*)<\/H3>/i);
-  if (folderMatch) {
-    const folderName = folderMatch[1].trim();
-    if (folderName && folderName !== 'Bookmarks' && folderName !== 'MimeBookmark Export') {
-      return [folderName];
-    }
-  }
-
-  return [];
-}
