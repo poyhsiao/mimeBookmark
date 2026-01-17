@@ -1,10 +1,11 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { CollectionModal } from "../collection-modal";
-import { expect, test, vi, describe } from "vitest";
+import { expect, test, vi, describe, beforeEach, afterEach } from "vitest";
+import * as useCollectionsModule from "@/hooks/use-collections";
 
 test("CollectionModal has valid aria-checked values and no inline styles", () => {
   const { container } = render(
-    <CollectionModal isOpen={true} onClose={() => {}} onSuccess={() => {}} />
+    <CollectionModal isOpen={true} onClose={() => {}} onSuccess={() => {}} />,
   );
 
   const radioButtons = screen.getAllByRole("radio");
@@ -27,7 +28,7 @@ test("CollectionModal has valid aria-checked values and no inline styles", () =>
 describe("CollectionModal keyboard navigation", () => {
   test("ArrowRight moves to next color and focuses it", () => {
     render(
-      <CollectionModal isOpen={true} onClose={() => {}} onSuccess={() => {}} />
+      <CollectionModal isOpen={true} onClose={() => {}} onSuccess={() => {}} />,
     );
 
     const radioButtons = screen.getAllByRole("radio");
@@ -50,7 +51,7 @@ describe("CollectionModal keyboard navigation", () => {
 
   test("ArrowDown moves to next color and focuses it", () => {
     render(
-      <CollectionModal isOpen={true} onClose={() => {}} onSuccess={() => {}} />
+      <CollectionModal isOpen={true} onClose={() => {}} onSuccess={() => {}} />,
     );
 
     const radioButtons = screen.getAllByRole("radio");
@@ -65,7 +66,7 @@ describe("CollectionModal keyboard navigation", () => {
 
   test("ArrowLeft moves to previous color and focuses it", () => {
     render(
-      <CollectionModal isOpen={true} onClose={() => {}} onSuccess={() => {}} />
+      <CollectionModal isOpen={true} onClose={() => {}} onSuccess={() => {}} />,
     );
 
     const radioButtons = screen.getAllByRole("radio");
@@ -87,7 +88,7 @@ describe("CollectionModal keyboard navigation", () => {
 
   test("ArrowUp moves to previous color and focuses it", () => {
     render(
-      <CollectionModal isOpen={true} onClose={() => {}} onSuccess={() => {}} />
+      <CollectionModal isOpen={true} onClose={() => {}} onSuccess={() => {}} />,
     );
 
     const radioButtons = screen.getAllByRole("radio");
@@ -103,7 +104,7 @@ describe("CollectionModal keyboard navigation", () => {
 
   test("ArrowRight wraps from last to first color", () => {
     render(
-      <CollectionModal isOpen={true} onClose={() => {}} onSuccess={() => {}} />
+      <CollectionModal isOpen={true} onClose={() => {}} onSuccess={() => {}} />,
     );
 
     const radioButtons = screen.getAllByRole("radio");
@@ -124,7 +125,7 @@ describe("CollectionModal keyboard navigation", () => {
 
   test("ArrowLeft wraps from first to last color", () => {
     render(
-      <CollectionModal isOpen={true} onClose={() => {}} onSuccess={() => {}} />
+      <CollectionModal isOpen={true} onClose={() => {}} onSuccess={() => {}} />,
     );
 
     const radioButtons = screen.getAllByRole("radio");
@@ -138,11 +139,66 @@ describe("CollectionModal keyboard navigation", () => {
     expect(lastButton).toHaveAttribute("aria-checked", "true");
     expect(firstButton).toHaveAttribute("aria-checked", "false");
   });
+});
+
+describe("CollectionModal keyboard navigation - loading state", () => {
+  let useCollectionsSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    // Spy on useCollections and mock it to return loading: true
+    useCollectionsSpy = vi.spyOn(useCollectionsModule, "useCollections");
+    useCollectionsSpy.mockReturnValue({
+      collections: [],
+      pagination: null,
+      loading: true,
+      isFetching: false,
+      isCreating: true, // This makes loading true
+      isUpdating: false,
+      isDeleting: false,
+      error: null,
+      fetchCollections: vi.fn(),
+      createCollection: vi.fn(),
+      updateCollection: vi.fn(),
+      deleteCollection: vi.fn(),
+      toggleFavorite: vi.fn(),
+    });
+  });
+
+  afterEach(() => {
+    useCollectionsSpy.mockRestore();
+  });
 
   test("keyboard navigation is disabled when loading", () => {
-    // We need to mock the useCollections hook to return loading: true
-    // For now, this test documents the expected behavior
-    // In a real implementation, we would mock the hook
-    expect(true).toBe(true); // Placeholder - will implement with proper mocking
+    render(
+      <CollectionModal isOpen={true} onClose={() => {}} onSuccess={() => {}} />,
+    );
+
+    const radioButtons = screen.getAllByRole("radio");
+    const firstButton = radioButtons[0];
+    const secondButton = radioButtons[1];
+
+    // Helper function to verify no navigation occurred
+    const expectNoNavigation = () => {
+      expect(firstButton).toHaveAttribute("aria-checked", "true");
+      expect(secondButton).toHaveAttribute("aria-checked", "false");
+    };
+
+    // First button should be checked initially
+    expectNoNavigation();
+
+    // Test all arrow keys - none should trigger navigation
+    firstButton.focus();
+
+    fireEvent.keyDown(firstButton, { key: "ArrowRight" });
+    expectNoNavigation();
+
+    fireEvent.keyDown(firstButton, { key: "ArrowDown" });
+    expectNoNavigation();
+
+    fireEvent.keyDown(firstButton, { key: "ArrowLeft" });
+    expectNoNavigation();
+
+    fireEvent.keyDown(firstButton, { key: "ArrowUp" });
+    expectNoNavigation();
   });
 });
