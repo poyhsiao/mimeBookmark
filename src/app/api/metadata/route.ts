@@ -35,10 +35,11 @@ function checkRateLimit(ip: string): boolean {
 
 // Cleanup function to remove stale IP entries
 // Called opportunistically from checkRateLimit to avoid background timers in serverless
-const CLEANUP_INTERVAL = RATE_LIMIT_WINDOW + 30000; // Keep constant for reference
 const cleanupStaleEntries = () => {
   const now = Date.now();
-  const staleThreshold = RATE_LIMIT_WINDOW + 10000; // Add 10s buffer
+  // Use a 10s buffer beyond the rate limit window for cleanup
+  // This ensures entries are cleaned up shortly after they become irrelevant
+  const staleThreshold = RATE_LIMIT_WINDOW + 10000;
 
   for (const [ip, timestamps] of requestLog.entries()) {
     // If the last timestamp is older than the threshold, delete the entry

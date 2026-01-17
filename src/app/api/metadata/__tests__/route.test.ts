@@ -194,20 +194,21 @@ describe('Metadata Route', () => {
     expect(res.status).toBe(200);
   });
 
-  test('should not start module-level setInterval', () => {
-    // Verify that no interval is running at module level
-    // This test checks that the cleanup is NOT done via setInterval
-    // We can't directly test for absence of setInterval, but we can verify
-    // that the global flag approach is not being used for background timers
+  test('should not start module-level setInterval', async () => {
+    // Spy on global.setInterval to detect any module-level timer initialization
+    const setIntervalSpy = vi.spyOn(global, 'setInterval');
 
-    // If __rateLimitCleanerStarted exists, it should only be used for
-    // opportunistic cleanup, not for starting background intervals
-    const hasGlobalFlag = typeof (globalThis as any).__rateLimitCleanerStarted !== 'undefined';
+    // Reset modules to force re-import and detect module-level side effects
+    vi.resetModules();
 
-    // The flag might exist, but there should be no active setInterval
-    // In a serverless environment, we expect cleanup to happen per-request
-    // This is more of a code review check - the actual implementation
-    // should call cleanupStaleEntries from checkRateLimit
-    expect(true).toBe(true); // Placeholder - actual verification is in code review
+    // Re-import the route module to trigger module-level code
+    await import('../route');
+
+    // Verify that setInterval was NOT called during module initialization
+    // In serverless environments, we should use opportunistic cleanup instead
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+
+    // Restore the spy
+    setIntervalSpy.mockRestore();
   });
 });
