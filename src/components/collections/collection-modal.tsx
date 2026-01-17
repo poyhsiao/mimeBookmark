@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useCollections } from "@/hooks/use-collections";
 import { useToast } from "@/hooks/use-toast";
 import { Modal } from "@/components/ui/modal";
@@ -37,6 +37,9 @@ export function CollectionModal({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [color, setColor] = useState(COLORS[0]);
+
+  // Create refs for color buttons to manage focus
+  const colorButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -82,6 +85,41 @@ export function CollectionModal({
 
   const handleClose = () => {
     onClose();
+  };
+
+  /**
+   * Handle keyboard navigation for color selection
+   * ArrowRight/ArrowDown: move to next color (with wrap)
+   * ArrowLeft/ArrowUp: move to previous color (with wrap)
+   */
+  const handleColorKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    // Ignore keyboard events when loading
+    if (loading) {
+      return;
+    }
+
+    const isNextKey = e.key === "ArrowRight" || e.key === "ArrowDown";
+    const isPrevKey = e.key === "ArrowLeft" || e.key === "ArrowUp";
+
+    if (!isNextKey && !isPrevKey) {
+      return;
+    }
+
+    e.preventDefault();
+
+    const currentIndex = COLORS.indexOf(color);
+    const totalColors = COLORS.length;
+
+    // Calculate next index with wrapping
+    const nextIndex = isNextKey
+      ? (currentIndex + 1) % totalColors
+      : (currentIndex - 1 + totalColors) % totalColors;
+
+    const nextColor = COLORS[nextIndex];
+    setColor(nextColor);
+
+    // Focus the new color button for better accessibility
+    colorButtonRefs.current[nextIndex]?.focus();
   };
 
   return (
@@ -143,21 +181,23 @@ export function CollectionModal({
         <fieldset className='space-y-2'>
           <legend className='text-sm font-medium'>Color</legend>
           <div role='radiogroup' className='flex flex-wrap gap-2'>
-            {COLORS.map((c) => (
+            {COLORS.map((c, index) => (
               <button
                 key={c}
+                ref={(el) => {
+                  colorButtonRefs.current[index] = el;
+                }}
                 type='button'
                 role='radio'
                 aria-checked={color === c}
                 tabIndex={color === c ? 0 : -1}
-                className={`w-8 h-8 rounded-full transition-transform color-btn-${COLORS.indexOf(
-                  c
-                )} ${
+                className={`w-8 h-8 rounded-full transition-transform color-btn-${index} ${
                   color === c
                     ? "ring-2 ring-offset-2 ring-primary scale-110"
                     : ""
                 }`}
                 onClick={() => setColor(c)}
+                onKeyDown={handleColorKeyDown}
                 disabled={loading}
                 aria-label={`Select color ${c}`}
               />
