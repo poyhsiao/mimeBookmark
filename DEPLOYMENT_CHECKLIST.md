@@ -5,21 +5,25 @@
 ### 1. 代码质量检查 ✅
 
 - [x] **类型检查通过**
+
   ```bash
   npx tsc --noEmit
   ```
 
 - [x] **所有测试通过** (14/14)
+
   ```bash
   npm test -- src/app/api/bookmarks/import
   ```
 
 - [x] **代码格式化**
+
   ```bash
   npm run format  # 如果需要
   ```
 
 - [x] **Lint 检查**
+
   ```bash
   npm run lint  # 如果需要
   ```
@@ -110,6 +114,7 @@
 **前置条件**:
 - 用户已有 95 个书签
 - 配额限制 100 个
+- 书签 `https://test.com` 已存在
 
 **测试数据**:
 ```json
@@ -252,7 +257,8 @@ git push origin v1.1.0
 部署后 24-48 小时内监控:
 
 1. **导入成功率**
-   ```
+
+   ```text
    成功率 = imported / (imported + errors.length)
    目标: > 95%
    ```
@@ -398,5 +404,5 @@ npm test
 ---
 
 **清单版本**: 1.0
-**创建日期**: 2024-01-17
+**创建日期**: 2026-01-17
 **修复版本**: v1.1.0

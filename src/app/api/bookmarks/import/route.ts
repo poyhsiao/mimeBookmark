@@ -208,7 +208,15 @@ export async function POST(request: NextRequest) {
             results.imported++;
 
             // Apply tag links for overwritten bookmarks
-            if (bookmark.tags && bookmark.tags.length > 0) {
+            // Check if tags array is explicitly provided (including empty array)
+            if (Array.isArray(bookmark.tags)) {
+              // First remove existing tag links for this bookmark
+              await supabase
+                .from('bookmark_tags')
+                .delete()
+                .eq('bookmark_id', existingId);
+
+              // Build new tag links from valid tags only
               const tagLinks: { bookmark_id: string; tag_id: string }[] = [];
 
               for (const tagName of bookmark.tags) {
@@ -222,16 +230,11 @@ export async function POST(request: NextRequest) {
                 }
               }
 
+              // Insert new tag links only if there are valid tags
               if (tagLinks.length > 0) {
-                // First remove existing tag links for this bookmark
-                await supabase
-                  .from('bookmark_tags')
-                  .delete()
-                  .eq('bookmark_id', existingId);
-
-                // Then insert new tag links
                 await supabase.from('bookmark_tags').upsert(tagLinks);
               }
+              // If tagLinks is empty, all tags were cleared (already deleted above)
             }
           }
         } else {

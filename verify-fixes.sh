@@ -73,15 +73,13 @@ echo ""
 echo "2. 运行测试套件..."
 echo "-----------------------------------"
 
-# 运行所有导入测试
-npm test -- src/app/api/bookmarks/import --run 2>&1 | tee /tmp/test-output.txt
-
-# 检查测试结果
-if grep -q "14 passed" /tmp/test-output.txt && ! grep -q "failed" /tmp/test-output.txt; then
-    echo -e "${GREEN}✓${NC} 所有 14 个测试通过"
+# 运行所有导入测试并检查退出码
+if npm test -- src/app/api/bookmarks/import --run > /dev/null 2>&1; then
+    echo -e "${GREEN}✓${NC} 所有测试通过"
 else
-    echo -e "${RED}✗${NC} 测试未全部通过"
-    exit 1
+    TEST_EXIT_CODE=$?
+    echo -e "${RED}✗${NC} 测试失败 (退出码: $TEST_EXIT_CODE)"
+    exit $TEST_EXIT_CODE
 fi
 
 echo ""

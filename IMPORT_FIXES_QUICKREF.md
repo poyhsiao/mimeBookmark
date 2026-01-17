@@ -16,6 +16,7 @@
 ## 📍 代码位置速查
 
 ### Fix-1: 标签名称防御性验证
+
 ```typescript
 // 位置 1: 第 96-98 行 - 标签名称过滤
 const tagNames = tags
@@ -33,6 +34,7 @@ if (typeof tagName !== 'string' || !tagName.trim()) continue;
 ```
 
 ### Fix-2: 配额检查逻辑
+
 ```typescript
 // 位置 1: 第 90 行 - 新增计数器
 let newInserts = 0;
@@ -46,6 +48,7 @@ results.imported++;
 ```
 
 ### Fix-3: 覆盖模式错误处理和标签应用
+
 ```typescript
 // 位置 1: 第 205-208 行 - 错误处理
 if (error) {
@@ -62,6 +65,7 @@ if (error) {
 ```
 
 ### Fix-4: OG 元数据持久化
+
 ```typescript
 // 位置 1: 第 195-196 行 - 更新路径
 og_title: bookmark.ogTitle || bookmark.og_title || null,
@@ -331,5 +335,5 @@ npm run type-check
 ---
 
 **文档版本**: 1.1.0
-**最后更新**: 2024-01-17
+**最后更新**: 2026-01-17
 **维护者**: MimeBookmark Team

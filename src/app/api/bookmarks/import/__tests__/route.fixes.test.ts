@@ -129,6 +129,63 @@ describe('Import Route - Bug Fixes Validation', () => {
     });
 
     test('should handle non-string bookmark tag references', async () => {
+      // Create mock for bookmark_tags upsert to verify tag links
+      const mockBookmarkTagsUpsert = vi.fn().mockResolvedValue({ data: null, error: null });
+
+      const mockFrom = vi.fn();
+      mockSupabase.from = mockFrom;
+
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            single: vi.fn().mockResolvedValue({
+              data: { bookmarks_count: 0, bookmarks_limit: 100 },
+              error: null,
+            }),
+          };
+        }
+        if (table === 'tags') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                in: vi.fn().mockReturnValue({
+                  is: vi.fn().mockResolvedValue({
+                    data: [{ id: 'tag-work', name: 'work' }],
+                  }),
+                }),
+              }),
+            }),
+            insert: vi.fn().mockReturnValue({
+              select: vi.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+          };
+        }
+        if (table === 'bookmarks') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            in: vi.fn().mockReturnThis(),
+            is: vi.fn().mockResolvedValue({ data: [] }),
+            insert: vi.fn().mockReturnValue({
+              select: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: { id: 'bookmark-1' },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === 'bookmark_tags') {
+          return {
+            upsert: mockBookmarkTagsUpsert,
+          };
+        }
+        return {};
+      });
+
       const data = {
         tags: [{ name: 'work' }],
         bookmarks: [
@@ -146,7 +203,13 @@ describe('Import Route - Bug Fixes Validation', () => {
       expect(res.status).toBe(200);
       const json = await res.json();
       expect(json.success).toBe(true);
-      // Should not crash and should only link 'work' tag
+
+      // Verify that only the valid 'work' tag was linked
+      expect(mockBookmarkTagsUpsert).toHaveBeenCalledWith([
+        { bookmark_id: 'bookmark-1', tag_id: 'tag-work' },
+      ]);
+      // Should be called only once with the single valid tag
+      expect(mockBookmarkTagsUpsert).toHaveBeenCalledTimes(1);
     });
   });
 
