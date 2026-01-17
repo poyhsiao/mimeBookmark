@@ -86,11 +86,16 @@ export async function POST(request: NextRequest) {
       collectionsCreated: 0,
     };
 
+    // Track new inserts separately for quota enforcement
+    let newInserts = 0;
+
     // Create tags first using batch operations to avoid N+1 queries
     const tagNameToId: Record<string, string> = {};
 
-    // Normalize tag names and filter out empty ones
-    const tagNames = tags.map(t => t.name?.toLowerCase()).filter(Boolean);
+    // Normalize tag names and filter out empty ones - defensively validate string type
+    const tagNames = tags
+      .filter(t => typeof t.name === 'string' && t.name.trim().length > 0)
+      .map(t => t.name.toLowerCase());
 
     if (tagNames.length > 0) {
       // Batch query: fetch all existing tags at once
@@ -112,7 +117,7 @@ export async function POST(request: NextRequest) {
       const uniqueTagsMap = new Map<string, { name: string; color?: string }>();
 
       for (const tag of tags) {
-        if (!tag.name) continue;
+        if (typeof tag.name !== 'string' || !tag.name.trim()) continue;
         const lowerName = tag.name.toLowerCase();
 
         // Skip if already exists in database
@@ -187,8 +192,8 @@ export async function POST(request: NextRequest) {
               description: bookmark.description || null,
               favicon_url: bookmark.favicon || null,
               og_image: bookmark.image || null,
-              og_title: bookmark.og_title || null,
-              og_description: bookmark.og_description || null,
+              og_title: bookmark.ogTitle || bookmark.og_title || null,
+              og_description: bookmark.ogDescription || bookmark.og_description || null,
               user_notes: bookmark.notes || null,
               user_rating: bookmark.rating || null,
               is_favorite: bookmark.isFavorite || false,
@@ -197,8 +202,37 @@ export async function POST(request: NextRequest) {
             })
             .eq('id', existingId);
 
-          if (!error) {
+          if (error) {
+            results.errors.push(`Failed to update ${bookmark.url}: ${error.message}`);
+          } else {
             results.imported++;
+
+            // Apply tag links for overwritten bookmarks
+            if (bookmark.tags && bookmark.tags.length > 0) {
+              const tagLinks: { bookmark_id: string; tag_id: string }[] = [];
+
+              for (const tagName of bookmark.tags) {
+                if (typeof tagName !== 'string' || !tagName.trim()) continue;
+                const tagId = tagNameToId[tagName.toLowerCase()];
+                if (tagId) {
+                  tagLinks.push({
+                    bookmark_id: existingId,
+                    tag_id: tagId,
+                  });
+                }
+              }
+
+              if (tagLinks.length > 0) {
+                // First remove existing tag links for this bookmark
+                await supabase
+                  .from('bookmark_tags')
+                  .delete()
+                  .eq('bookmark_id', existingId);
+
+                // Then insert new tag links
+                await supabase.from('bookmark_tags').upsert(tagLinks);
+              }
+            }
           }
         } else {
           results.skipped++;
@@ -206,8 +240,8 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Check limit for new inserts (always enforce, even when overwrite=true)
-      if (profile.bookmarks_count + results.imported >= profile.bookmarks_limit) {
+      // Check limit for new inserts using separate counter
+      if (profile.bookmarks_count + newInserts >= profile.bookmarks_limit) {
         results.errors.push(`Skipped ${bookmark.url}: storage limit reached`);
         continue;
       }
@@ -222,6 +256,8 @@ export async function POST(request: NextRequest) {
           description: bookmark.description || null,
           favicon_url: bookmark.favicon || null,
           og_image: bookmark.image || null,
+          og_title: bookmark.ogTitle || bookmark.og_title || null,
+          og_description: bookmark.ogDescription || bookmark.og_description || null,
           user_notes: bookmark.notes || null,
           user_rating: bookmark.rating || null,
           is_favorite: bookmark.isFavorite || false,
@@ -240,6 +276,7 @@ export async function POST(request: NextRequest) {
         const tagLinks: { bookmark_id: string; tag_id: string }[] = [];
 
         for (const tagName of bookmark.tags) {
+          if (typeof tagName !== 'string' || !tagName.trim()) continue;
           const tagId = tagNameToId[tagName.toLowerCase()];
           if (tagId) {
             tagLinks.push({
@@ -254,6 +291,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      newInserts++;
       results.imported++;
     }
 
