@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Upload, Download, FileJson, FileText, CheckCircle } from 'lucide-react';
 
@@ -36,16 +37,19 @@ export default function SettingsPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      
+
       const contentDisposition = response.headers.get('Content-Disposition');
-      const fileName = contentDisposition?.match(/filename="(.+)"/)?.[1] || 
+      const fileName = contentDisposition?.match(/filename="(.+)"/)?.[1] ||
         `mimebookmark-export.${exportFormat}`;
-      
+
       a.download = fileName;
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      // Delay cleanup to ensure download starts on slow systems
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }, 1000);
 
       toast({
         title: 'Export complete',
@@ -201,12 +205,10 @@ export default function SettingsPage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
+              <Checkbox
                 id="overwrite"
                 checked={overwriteExisting}
-                onChange={(e) => setOverwriteExisting(e.target.checked)}
-                className="rounded border-gray-300"
+                onCheckedChange={setOverwriteExisting}
               />
               <label htmlFor="overwrite" className="text-sm">
                 Overwrite existing bookmarks with same URL

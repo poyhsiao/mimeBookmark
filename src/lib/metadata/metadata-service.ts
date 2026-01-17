@@ -12,7 +12,7 @@ export async function fetchMetadata(url: string): Promise<Metadata> {
     const response = await fetch(url, {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; MimeBookmark/1.0; +http://localhost:3000)',
+        'User-Agent': 'Mozilla/5.0 (compatible; MimeBookmark/1.0)',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       },
       redirect: 'follow',
@@ -88,6 +88,13 @@ function extractTitle(html: string): string {
   return match ? match[1].trim() : '';
 }
 
+/**
+ * Extract meta tag content from HTML.
+ *
+ * SECURITY: The `name` parameter MUST be a trusted/hardcoded value (e.g., 'description', 'og:title').
+ * Callers MUST NOT pass user-controlled input to prevent ReDoS (Regular Expression Denial of Service) attacks.
+ * If dynamic input is needed, validate against a whitelist of expected meta names before calling this function.
+ */
 function extractMeta(html: string, name: string): string {
   const patterns = [
     new RegExp(`<meta\\s+name=["']${name}["']\\s+content=["']([^"']*)["']`, 'i'),

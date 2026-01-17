@@ -51,12 +51,19 @@ export async function GET(request: NextRequest) {
   }
 
   // Fetch tags
-  const { data: tags } = await supabase
+  const { data: tags, error: tagsError } = await supabase
     .from('tags')
     .select('id, name, color')
     .eq('user_id', user.id)
     .is('deleted_at', null)
     .order('name');
+
+  if (tagsError) {
+    return NextResponse.json(
+      { error: 'Failed to fetch tags' },
+      { status: 500 }
+    );
+  }
 
   if (format === 'html') {
     const html = generateNetscapeHtml(
@@ -75,42 +82,45 @@ export async function GET(request: NextRequest) {
   }
 
     // Default JSON format
-    return NextResponse.json({
-      version: '1.0',
-      exportedAt: new Date().toISOString(),
-      userEmail: user.email,
-      bookmarks: (bookmarks || []).map((b: any) => ({
-        url: b.url,
-        title: b.title,
-        description: b.description,
-        domain: b.domain,
-        favicon: b.favicon_url,
-        image: b.og_image,
-        isFavorite: b.is_favorite,
-        isArchived: b.is_archived,
-        notes: b.user_notes,
-        rating: b.user_rating,
-        createdAt: b.created_at,
-        tags: b.tags?.map((t: any) => t.tags.name).filter(Boolean) || [],
-      })),
-      collections: (collections || []).map((c: any) => ({
-      id: c.id,
-      name: c.name,
-      description: c.description,
-        color: c.color,
-        icon: c.icon,
-        parentId: c.parent_id,
-      })),
-      tags: (tags || []).map((t: any) => ({
-      id: t.id,
-      name: t.name,
-      color: t.color,
-    })),
-  }, {
-    headers: {
-      'Content-Disposition': `attachment; filename="mimebookmark-export-${new Date().toISOString().split('T')[0]}.json"`,
-    },
-  });
+    return NextResponse.json(
+      {
+        version: '1.0',
+        exportedAt: new Date().toISOString(),
+        userEmail: user.email,
+        bookmarks: (bookmarks || []).map((b: any) => ({
+          url: b.url,
+          title: b.title,
+          description: b.description,
+          domain: b.domain,
+          favicon: b.favicon_url,
+          image: b.og_image,
+          isFavorite: b.is_favorite,
+          isArchived: b.is_archived,
+          notes: b.user_notes,
+          rating: b.user_rating,
+          createdAt: b.created_at,
+          tags: b.tags?.map((t: any) => t.tags?.name).filter(Boolean) || [],
+        })),
+        collections: (collections || []).map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          description: c.description,
+          color: c.color,
+          icon: c.icon,
+          parentId: c.parent_id,
+        })),
+        tags: (tags || []).map((t: any) => ({
+          id: t.id,
+          name: t.name,
+          color: t.color,
+        })),
+      },
+      {
+        headers: {
+          'Content-Disposition': `attachment; filename="mimebookmark-export-${new Date().toISOString().split('T')[0]}.json"`,
+        },
+      }
+    );
 }
 
 // Generate Netscape bookmark HTML format
@@ -140,6 +150,7 @@ ${collectionBookmarks.map((b: any) => generateBookmarkEntry(b)).join('\n')}
 <!-- This is an automatically generated file.
      It will be read and overwritten.
      DO NOT EDIT! -->
+<!-- Exported for: ${escapeHtml(userEmail)} on ${now} -->
 <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
 <TITLE>Bookmarks</TITLE>
 <H1>Bookmarks</H1>

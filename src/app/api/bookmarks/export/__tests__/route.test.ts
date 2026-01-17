@@ -1,4 +1,3 @@
-
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 import { GET } from '../route';
 import { NextRequest } from 'next/server';

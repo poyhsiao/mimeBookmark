@@ -1,6 +1,6 @@
 
-import { describe, expect, test, vi } from 'vitest';
-import { GET } from '../route';
+import { describe, expect, test, vi, beforeEach } from 'vitest';
+import { GET, requestLog, cleanupStaleEntries } from '../route';
 import { NextRequest } from 'next/server';
 
 // Mock dependencies
@@ -9,6 +9,12 @@ vi.mock('@/lib/metadata/metadata-service', () => ({
 }));
 
 describe('Metadata Route', () => {
+  beforeEach(() => {
+    // Clear request log before each test
+    requestLog.clear();
+    vi.clearAllMocks();
+  });
+
   const createRequest = (urlParam: string) => {
     return new NextRequest(`http://localhost/api/metadata?url=${encodeURIComponent(urlParam)}`);
   };
@@ -46,23 +52,32 @@ describe('Metadata Route', () => {
   });
 
   test('should cleanup stale IP entries from requestLog', async () => {
-    // This test verifies that the rate limit implementation cleans up
-    // entries for IPs that have no recent requests
     const { fetchMetadata } = await import('@/lib/metadata/metadata-service');
     vi.mocked(fetchMetadata).mockResolvedValue({ title: 'Test' });
 
+    const testIp = '192.168.1.100';
+
     // Make a request to populate the log
-    const req1 = createRequest('https://example.com');
-    await GET(req1);
+    const req = new NextRequest(`http://localhost/api/metadata?url=${encodeURIComponent('https://example.com')}`, {
+      headers: {
+        'x-forwarded-for': testIp,
+      },
+    });
+    await GET(req);
 
-    // Access the internal requestLog (we'll need to export it for testing)
-    // For now, we'll test the behavior indirectly by verifying that
-    // after the rate limit window passes, the entry should be cleaned up
-    // This is a placeholder test that will fail until we implement cleanup
+    // Verify the IP is in the log
+    expect(requestLog.has(testIp)).toBe(true);
+    expect(requestLog.get(testIp)?.length).toBeGreaterThan(0);
 
-    // We expect that after implementing cleanup, empty request arrays
-    // should be removed from the map
-    expect(true).toBe(true); // Placeholder - will be updated after implementation
+    // Manually expire the entry by setting old timestamps
+    const veryOldTimestamp = Date.now() - 120000; // 2 minutes ago (beyond cleanup threshold)
+    requestLog.set(testIp, [veryOldTimestamp]);
+
+    // Call cleanup to remove stale entries
+    cleanupStaleEntries();
+
+    // Verify the entry was removed
+    expect(requestLog.has(testIp)).toBe(false);
   });
 
   test('should correctly parse x-forwarded-for header', async () => {

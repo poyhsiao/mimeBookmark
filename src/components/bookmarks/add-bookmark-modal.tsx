@@ -40,28 +40,54 @@ export function AddBookmarkModal({ isOpen, onClose, onSuccess }: AddBookmarkModa
       return;
     }
 
+    // Create abort controller for this request
+    const abortController = new AbortController();
+
     const fetchMetadata = async () => {
       setIsFetchingMetadata(true);
       try {
         const params = new URLSearchParams({ url: url.trim() });
-        const response = await fetch(`/api/metadata?${params}`);
-        
+        const response = await fetch(`/api/metadata?${params}`, {
+          signal: abortController.signal,
+        });
+
+        // Check if request was aborted
+        if (abortController.signal.aborted) {
+          return;
+        }
+
         if (response.ok) {
           const metadata = await response.json();
-          // Only auto-fill if fields are empty (user hasn't edited them)
-          if (!title) setTitle(metadata.title || '');
-          if (!description) setDescription(metadata.description || '');
+
+          // Check again if request was aborted during response parsing
+          if (abortController.signal.aborted) {
+            return;
+          }
+
+          // Use functional state updates to read latest state
+          setTitle(curr => curr || metadata.title || '');
+          setDescription(curr => curr || metadata.description || '');
           setFavicon(metadata.favicon || '');
         }
       } catch (error) {
-        console.error('Failed to fetch metadata:', error);
+        // Only log error if not aborted
+        if (!abortController.signal.aborted) {
+          console.error('Failed to fetch metadata:', error);
+        }
       } finally {
-        setIsFetchingMetadata(false);
+        // Only set fetching to false if this request wasn't aborted
+        if (!abortController.signal.aborted) {
+          setIsFetchingMetadata(false);
+        }
       }
     };
 
     const timer = setTimeout(fetchMetadata, 500); // Debounce 500ms
-    return () => clearTimeout(timer);
+
+    return () => {
+      clearTimeout(timer);
+      abortController.abort();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url]);
 
@@ -155,7 +181,7 @@ export function AddBookmarkModal({ isOpen, onClose, onSuccess }: AddBookmarkModa
               onChange={(e) => setUrl(e.target.value)}
               required
               disabled={loading}
-              className={isFetchingMetadata ? 'pr-10' : ''}
+              className={isFetchingMetadata || favicon ? 'pr-10' : ''}
             />
             {isFetchingMetadata && (
               <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -201,7 +227,7 @@ export function AddBookmarkModal({ isOpen, onClose, onSuccess }: AddBookmarkModa
           </label>
           <textarea
             id="description"
-            className="w-full min-h-[80px] px-3 py-2 border border-input bg-background rounded-md text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity50"
+            className="w-full min-h-[80px] px-3 py-2 border border-input bg-background rounded-md text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             placeholder="Page description (auto-fetched if empty)"
             value={description}
             onChange={(e) => setDescription(e.target.value)}

@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchMetadata } from '@/lib/metadata/metadata-service';
+import { promises as dnsPromises } from 'dns';
+import { isIP } from 'net';
 
 // Basic rate limiting implementation using in-memory usage tracking (not persistent across serverless restarts)
 // For production, use Redis or database
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const MAX_REQUESTS = 20;
-const requestLog = new Map<string, number[]>();
+// Exported for testing purposes
+export const requestLog = new Map<string, number[]>();
 
 function checkRateLimit(ip: string): boolean {
   const now = Date.now();
@@ -35,7 +38,8 @@ function checkRateLimit(ip: string): boolean {
 
 // Cleanup function to remove stale IP entries
 // Called opportunistically from checkRateLimit to avoid background timers in serverless
-const cleanupStaleEntries = () => {
+// Exported for testing purposes
+export const cleanupStaleEntries = () => {
   const now = Date.now();
   // Use a 10s buffer beyond the rate limit window for cleanup
   // This ensures entries are cleaned up shortly after they become irrelevant
@@ -156,7 +160,7 @@ function isPrivateIP(ip: string): boolean {
   return false;
 }
 
-function isAllowedUrl(urlString: string): boolean {
+async function isAllowedUrl(urlString: string): Promise<boolean> {
   try {
     const url = new URL(urlString);
 
@@ -172,38 +176,49 @@ function isAllowedUrl(urlString: string): boolean {
       return false;
     }
 
-    // Check if hostname is an IP address
-    const net = require('net');
-
     // Remove brackets from IPv6 addresses
     const cleanHostname = hostname.replace(/^\[|\]$/g, '');
 
-    if (net.isIP(cleanHostname)) {
+    if (isIP(cleanHostname)) {
       // Direct IP address - check if it's private
       if (isPrivateIP(cleanHostname)) {
         return false;
       }
-    } else {
-      // Hostname - additional DNS resolution would be needed for production
-      // For now, we block known private hostname patterns
-      // In production, you should resolve DNS and check all returned IPs
+      return true;
+    }
 
-      // Block common internal hostnames
-      const internalPatterns = [
-        /^localhost$/i,
-        /\.local$/i,
-        /^127\./,
-        /^10\./,
-        /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
-        /^192\.168\./,
-        /^169\.254\./,
-      ];
+    // Block common internal hostname patterns early (before DNS resolution)
+    const internalPatterns = [
+      /^localhost$/i,
+      /\.local$/i,
+      /^127\./,
+      /^10\./,
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
+      /^192\.168\./,
+      /^169\.254\./,
+    ];
 
-      for (const pattern of internalPatterns) {
-        if (pattern.test(hostname)) {
+    for (const pattern of internalPatterns) {
+      if (pattern.test(hostname)) {
+        return false;
+      }
+    }
+
+    // DNS resolution to verify the hostname doesn't resolve to private IPs
+    try {
+      const addresses = await dnsPromises.lookup(hostname, { all: true });
+
+      // Check all resolved addresses
+      for (const resolved of addresses) {
+        if (isIP(resolved.address) && isPrivateIP(resolved.address)) {
+          // Check if any resolved IP is private
           return false;
         }
       }
+    } catch (dnsError) {
+      // DNS resolution failed - this could mean the hostname doesn't exist
+      // or there's a network issue. For security, we should block it.
+      return false;
     }
 
     return true;
@@ -247,7 +262,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  if (!isAllowedUrl(url)) {
+  if (!(await isAllowedUrl(url))) {
     return NextResponse.json(
       { error: 'Invalid URL: Private or restricted URLs are not allowed' },
       { status: 400 }

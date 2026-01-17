@@ -33,7 +33,15 @@ export async function POST(request: NextRequest) {
       contentType === 'text/json' ||
       fileName.endsWith('.json')
     ) {
-      const data = JSON.parse(content);
+      let data;
+      try {
+        data = JSON.parse(content);
+      } catch (parseError) {
+        return NextResponse.json(
+          { error: 'Invalid JSON file. Please check the file format and try again.' },
+          { status: 400 }
+        );
+      }
       bookmarks = data.bookmarks || [];
       collections = data.collections || [];
       tags = data.tags || [];
@@ -67,25 +75,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Failed to fetch user profile' },
         { status: 500 }
-      );
-    }
-
-    const existingBookmarks = bookmarks.length;
-    const availableSpace = profile.bookmarks_limit - profile.bookmarks_count;
-
-    // Skip duplicates check if not overwriting
-    if (!overwrite && existingBookmarks > availableSpace) {
-      return NextResponse.json(
-        {
-          error: 'Not enough storage space',
-          details: {
-            currentCount: profile.bookmarks_count,
-            limit: profile.bookmarks_limit,
-            available: availableSpace,
-            importing: existingBookmarks,
-          }
-        },
-        { status: 400 }
       );
     }
 
