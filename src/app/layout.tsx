@@ -19,13 +19,15 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <Script
-          async
-          defer
-          src={process.env.NEXT_PUBLIC_UMAMI_URL ? `${process.env.NEXT_PUBLIC_UMAMI_URL}/script.js` : undefined}
-          data-website-id={process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID}
-          strategy="afterInteractive"
-        />
+        {process.env.NEXT_PUBLIC_UMAMI_URL && (
+          <Script
+            async
+            defer
+            src={`${process.env.NEXT_PUBLIC_UMAMI_URL}/script.js`}
+            data-website-id={process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID}
+            strategy="lazyOnload"
+          />
+        )}
         {children}
         <Toaster />
       </body>

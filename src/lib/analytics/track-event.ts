@@ -1,7 +1,9 @@
 import type { TrackEventOptions } from '@/types/analytics';
+import { ensureUmami } from './utils';
 
 export function trackEvent({ eventName, eventData }: TrackEventOptions): void {
-  if (typeof window !== 'undefined' && window.umami) {
-    window.umami.track(eventName, eventData);
+  const umami = ensureUmami();
+  if (umami) {
+    umami.track(eventName, eventData);
   }
 }
