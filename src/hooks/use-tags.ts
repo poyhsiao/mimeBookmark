@@ -38,7 +38,8 @@ export interface UseTagsReturn {
 export function useTags(): UseTagsReturn {
   const [tags, setTags] = useState<Tag[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loadingCount, setLoadingCount] = useState(0);
+  const loading = loadingCount > 0;
   const [error, setError] = useState<string | null>(null);
 
   const fetchTags = useCallback(async (options?: {
@@ -47,7 +48,7 @@ export function useTags(): UseTagsReturn {
     search?: string;
     sort?: 'newest' | 'oldest' | 'name';
   }) => {
-    setLoading(true);
+    setLoadingCount(c => c + 1);
     setError(null);
 
     try {
@@ -69,12 +70,12 @@ export function useTags(): UseTagsReturn {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
-      setLoading(false);
+      setLoadingCount(c => c - 1);
     }
   }, []);
 
   const createTag = useCallback(async (tag: { name: string; color?: string }): Promise<Tag | null> => {
-    setLoading(true);
+    setLoadingCount(c => c + 1);
     setError(null);
 
     try {
@@ -95,12 +96,12 @@ export function useTags(): UseTagsReturn {
       setError(err instanceof Error ? err.message : 'An error occurred');
       return null;
     } finally {
-      setLoading(false);
+      setLoadingCount(c => c - 1);
     }
   }, []);
 
   const updateTag = useCallback(async (id: string, updates: Partial<Tag>): Promise<boolean> => {
-    setLoading(true);
+    setLoadingCount(c => c + 1);
     setError(null);
 
     try {
@@ -121,12 +122,12 @@ export function useTags(): UseTagsReturn {
       setError(err instanceof Error ? err.message : 'An error occurred');
       return false;
     } finally {
-      setLoading(false);
+      setLoadingCount(c => c - 1);
     }
   }, []);
 
   const deleteTag = useCallback(async (id: string): Promise<boolean> => {
-    setLoading(true);
+    setLoadingCount(c => c + 1);
     setError(null);
 
     try {
@@ -134,30 +135,8 @@ export function useTags(): UseTagsReturn {
         method: 'DELETE',
       });
 
-      // Handle 204 No Content responses
-      const contentLength = response.headers.get('content-length');
-      const isEmptyBody = response.status === 204 || contentLength === '0';
-
-      if (isEmptyBody) {
-        if (!response.ok) {
-          throw new Error('Failed to delete tag');
-        }
-        setTags(prev => prev.filter(t => t.id !== id));
-        return true;
-      }
-
-      // Check body content if content-length is absent
-      if (!contentLength) {
-        const text = await response.clone().text();
-        if (text === '' && !response.ok) {
-          throw new Error('Failed to delete tag');
-        }
-      }
-
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data?.error || 'Failed to delete tag');
+        throw new Error('Failed to delete tag');
       }
 
       setTags(prev => prev.filter(t => t.id !== id));
@@ -166,7 +145,7 @@ export function useTags(): UseTagsReturn {
       setError(err instanceof Error ? err.message : 'An error occurred');
       return false;
     } finally {
-      setLoading(false);
+      setLoadingCount(c => c - 1);
     }
   }, []);
 

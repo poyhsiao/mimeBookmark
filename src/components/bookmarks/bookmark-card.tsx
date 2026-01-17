@@ -11,7 +11,6 @@ import {
   Star,
   MoreHorizontal,
   Trash2,
-  Archive,
   Copy,
   Edit2,
 } from "lucide-react";
@@ -83,10 +82,18 @@ export function BookmarkCard({
 
   const handleToggleFavorite = async (e: React.MouseEvent) => {
     e.preventDefault();
-    await onToggleFavorite(bookmark.id);
+    try {
+      await onToggleFavorite(bookmark.id);
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to update favorite status",
+        variant: "destructive",
+      });
+    }
   };
 
-  const getFaviconUrl = (url: string) => {
+  const getFaviconUrl = (url: string): string | null => {
     try {
       const domain = new URL(url).hostname;
       return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
@@ -95,54 +102,43 @@ export function BookmarkCard({
     }
   };
 
+  const getFaviconDisplay = () => {
+    const faviconUrl = bookmark.favicon_url || getFaviconUrl(bookmark.url);
+    if (!faviconUrl) {
+      return bookmark.domain ? (
+        <span className='text-xs'>
+          {bookmark.domain[0].toUpperCase()}
+        </span>
+      ) : null;
+    }
+
+    if (faviconError) {
+      return bookmark.domain ? (
+        <span className='text-xs'>
+          {bookmark.domain[0].toUpperCase()}
+        </span>
+      ) : null;
+    }
+
+    return (
+      <Image
+        src={faviconUrl}
+        alt=''
+        width={24}
+        height={24}
+        className='w-6 h-6 object-contain'
+        onError={() => setFaviconError(true)}
+        unoptimized
+      />
+    );
+  };
+
   return (
     <>
       <div className='group relative bg-card border rounded-lg p-4 hover:shadow-md transition-shadow'>
         <div className='flex items-start gap-3'>
           <div className='flex-shrink-0 w-10 h-10 rounded-lg bg-muted flex items-center justify-center overflow-hidden'>
-            {bookmark.favicon_url ? (
-              faviconError ? (
-                bookmark.domain && (
-                  <span className='text-xs'>
-                    {bookmark.domain[0].toUpperCase()}
-                  </span>
-                )
-              ) : (
-                <Image
-                  src={bookmark.favicon_url}
-                  alt=''
-                  width={24}
-                  height={24}
-                  className='w-6 h-6 object-contain'
-                  onError={() => setFaviconError(true)}
-                  unoptimized
-                />
-              )
-            ) : getFaviconUrl(bookmark.url) ? (
-              faviconError ? (
-                bookmark.domain && (
-                  <span className='text-xs'>
-                    {bookmark.domain[0].toUpperCase()}
-                  </span>
-                )
-              ) : (
-                <Image
-                  src={getFaviconUrl(bookmark.url) || ""}
-                  alt=''
-                  width={24}
-                  height={24}
-                  className='w-6 h-6 object-contain'
-                  onError={() => setFaviconError(true)}
-                  unoptimized
-                />
-              )
-            ) : (
-              bookmark.domain && (
-                <span className='text-xs'>
-                  {bookmark.domain[0].toUpperCase()}
-                </span>
-              )
-            )}
+            {getFaviconDisplay()}
           </div>
 
           <div className='flex-1 min-w-0'>
@@ -205,14 +201,6 @@ export function BookmarkCard({
                       >
                         <Copy className='h-4 w-4' />
                         Copy URL
-                      </button>
-                      <button
-                        type='button'
-                        className='w-full px-4 py-2 text-left text-sm hover:bg-accent flex items-center gap-2'
-                        onClick={() => setShowMenu(false)}
-                      >
-                        <Archive className='h-4 w-4' />
-                        Archive
                       </button>
                       <button
                         type='button'

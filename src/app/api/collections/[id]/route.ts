@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
 async function getCollection(supabase: Awaited<ReturnType<typeof createClient>>, id: string, userId: string) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('collections')
     .select('*')
     .eq('id', id)
@@ -10,7 +10,7 @@ async function getCollection(supabase: Awaited<ReturnType<typeof createClient>>,
     .is('deleted_at', null)
     .single();
 
-  return data;
+  return { data, error };
 }
 
 // GET /api/collections/[id] - Get a single collection with bookmarks
@@ -26,14 +26,17 @@ export async function GET(
   }
 
   const { id } = await params;
-  const collection = await getCollection(supabase, id, user.id);
+  const { data: collection, error: collectionError } = await getCollection(supabase, id, user.id);
 
-  if (!collection) {
-    return NextResponse.json({ error: 'Collection not found' }, { status: 404 });
+  if (collectionError) {
+    if (collectionError.code === 'PGRST116') {
+      return NextResponse.json({ error: 'Collection not found' }, { status: 404 });
+    }
+    return NextResponse.json({ error: collectionError.message }, { status: 500 });
   }
 
   // Get bookmarks in this collection
-  const { data: bookmarks } = await supabase
+  const { data: bookmarks, error: bookmarksError } = await supabase
     .from('collection_bookmarks')
     .select(`
       bookmark_id,
@@ -51,6 +54,10 @@ export async function GET(
     `)
     .eq('collection_id', id)
     .order('sort_order', { ascending: true });
+
+  if (bookmarksError) {
+    return NextResponse.json({ error: bookmarksError.message }, { status: 500 });
+  }
 
   return NextResponse.json({
     collection,
@@ -71,10 +78,13 @@ export async function PATCH(
   }
 
   const { id } = await params;
-  const collection = await getCollection(supabase, id, user.id);
+  const { data: collection, error: collectionError } = await getCollection(supabase, id, user.id);
 
-  if (!collection) {
-    return NextResponse.json({ error: 'Collection not found' }, { status: 404 });
+  if (collectionError) {
+    if (collectionError.code === 'PGRST116') {
+      return NextResponse.json({ error: 'Collection not found' }, { status: 404 });
+    }
+    return NextResponse.json({ error: collectionError.message }, { status: 500 });
   }
 
   try {
@@ -125,10 +135,13 @@ export async function DELETE(
   }
 
   const { id } = await params;
-  const collection = await getCollection(supabase, id, user.id);
+  const { data: collection, error: collectionError } = await getCollection(supabase, id, user.id);
 
-  if (!collection) {
-    return NextResponse.json({ error: 'Collection not found' }, { status: 404 });
+  if (collectionError) {
+    if (collectionError.code === 'PGRST116') {
+      return NextResponse.json({ error: 'Collection not found' }, { status: 404 });
+    }
+    return NextResponse.json({ error: collectionError.message }, { status: 500 });
   }
 
   // Soft delete

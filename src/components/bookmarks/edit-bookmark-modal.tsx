@@ -47,8 +47,8 @@ export function EditBookmarkModal({ isOpen, onClose, bookmark, onSuccess }: Edit
 
     const success = await updateBookmark(bookmark.id, {
       url: url.trim(),
-      title: title.trim() === '' ? null : title.trim(),
-      description: description.trim() === '' ? null : description.trim(),
+      title: title.trim() === '' ? undefined : title.trim(),
+      description: description.trim() === '' ? undefined : description.trim(),
     });
 
     if (success) {

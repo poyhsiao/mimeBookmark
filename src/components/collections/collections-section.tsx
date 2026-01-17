@@ -55,10 +55,12 @@ export function CollectionsSection({ showHeader = true, limit }: CollectionsSect
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
+              id="collection-search"
               placeholder="Search collections..."
               value={search}
               onChange={handleSearch}
               className="pl-10"
+              aria-label="Search collections"
             />
           </div>
           <Button onClick={() => setShowModal(true)}>
@@ -111,10 +113,7 @@ export function CollectionsSection({ showHeader = true, limit }: CollectionsSect
       <CollectionModal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
-        onSuccess={() => {
-          fetchCollections({ search: debouncedSearch, limit });
-          setShowModal(false);
-        }}
+        onSuccess={() => fetchCollections({ search: debouncedSearch, limit })}
       />
     </div>
   );

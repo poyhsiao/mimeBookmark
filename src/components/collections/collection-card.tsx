@@ -39,20 +39,29 @@ export function CollectionCard({ collection, onDelete, onToggleFavorite }: Colle
     if (!confirm('Are you sure you want to delete this collection? Bookmarks will not be deleted.')) return;
 
     setIsDeleting(true);
-    const success = await onDelete(collection.id);
-    setIsDeleting(false);
+    try {
+      const success = await onDelete(collection.id);
 
-    if (success) {
-      toast({
-        title: 'Deleted',
-        description: 'Collection has been deleted',
-      });
-    } else {
+      if (success) {
+        toast({
+          title: 'Deleted',
+          description: 'Collection has been deleted',
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: 'Failed to delete collection',
+          variant: 'destructive',
+        });
+      }
+    } catch {
       toast({
         title: 'Error',
         description: 'Failed to delete collection',
         variant: 'destructive',
       });
+    } finally {
+      setIsDeleting(false);
     }
     setShowMenu(false);
   };
