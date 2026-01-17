@@ -12,13 +12,15 @@ export async function POST(request: NextRequest) {
 
   try {
     const formData = await request.formData();
-    const file = formData.get('file') as File;
+    const fileRaw = formData.get('file');
     const overwrite = formData.get('overwrite') === 'true';
 
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    // Safely validate the uploaded field - check for File or Blob with text() method
+    if (!fileRaw || typeof fileRaw === 'string' || typeof (fileRaw as any).text !== 'function') {
+      return NextResponse.json({ error: 'No file provided or invalid file' }, { status: 400 });
     }
 
+    const file = fileRaw as File;
     const content = await file.text();
     const contentType = file.type;
     const fileName = file.name.toLowerCase();
@@ -263,30 +265,38 @@ export async function POST(request: NextRequest) {
             // Check if tags array is explicitly provided (including empty array)
             if (Array.isArray(bookmark.tags)) {
               // First remove existing tag links for this bookmark
-              await supabase
+              const { error: deleteError } = await supabase
                 .from('bookmark_tags')
                 .delete()
                 .eq('bookmark_id', existingId);
 
-              // Build new tag links from valid tags only
-              const tagLinks: { bookmark_id: string; tag_id: string }[] = [];
+              if (deleteError) {
+                results.errors.push(`Failed to delete tags for ${bookmark.url}: ${deleteError.message}`);
+              } else {
+                // Build new tag links from valid tags only
+                const tagLinks: { bookmark_id: string; tag_id: string }[] = [];
 
-              for (const tagName of bookmark.tags) {
-                if (typeof tagName !== 'string' || !tagName.trim()) continue;
-                const tagId = tagNameToId[tagName.toLowerCase()];
-                if (tagId) {
-                  tagLinks.push({
-                    bookmark_id: existingId,
-                    tag_id: tagId,
-                  });
+                for (const tagName of bookmark.tags) {
+                  if (typeof tagName !== 'string' || !tagName.trim()) continue;
+                  const tagId = tagNameToId[tagName.toLowerCase()];
+                  if (tagId) {
+                    tagLinks.push({
+                      bookmark_id: existingId,
+                      tag_id: tagId,
+                    });
+                  }
                 }
-              }
 
-              // Insert new tag links only if there are valid tags
-              if (tagLinks.length > 0) {
-                await supabase.from('bookmark_tags').upsert(tagLinks);
+                // Insert new tag links only if there are valid tags
+                if (tagLinks.length > 0) {
+                  const { error: upsertError } = await supabase.from('bookmark_tags').upsert(tagLinks);
+
+                  if (upsertError) {
+                    results.errors.push(`Failed to update tags for ${bookmark.url}: ${upsertError.message}`);
+                  }
+                }
+                // If tagLinks is empty, all tags were cleared (already deleted above)
               }
-              // If tagLinks is empty, all tags were cleared (already deleted above)
             }
           }
         } else {
@@ -342,7 +352,11 @@ export async function POST(request: NextRequest) {
         }
 
         if (tagLinks.length > 0) {
-          await supabase.from('bookmark_tags').upsert(tagLinks);
+          const { error: upsertError } = await supabase.from('bookmark_tags').upsert(tagLinks);
+
+          if (upsertError) {
+            results.errors.push(`Failed to link tags for ${bookmark.url}: ${upsertError.message}`);
+          }
         }
       }
 
