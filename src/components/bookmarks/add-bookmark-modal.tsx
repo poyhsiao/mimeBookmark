@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useBookmarks } from '@/hooks/use-bookmarks';
 import { useToast } from '@/hooks/use-toast';
 import { Modal } from '@/components/ui/modal';
@@ -20,6 +20,76 @@ export function AddBookmarkModal({ isOpen, onClose, onSuccess }: AddBookmarkModa
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [favicon, setFavicon] = useState('');
+  const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
+
+  // Helper to validate URL
+  const isValidUrl = (string: string): boolean => {
+    try {
+      new URL(string);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // Fetch metadata when URL changes (debounced)
+  useEffect(() => {
+    if (!url || !isValidUrl(url)) {
+      setFavicon('');
+      return;
+    }
+
+    // Create abort controller for this request
+    const abortController = new AbortController();
+
+    const fetchMetadata = async () => {
+      setIsFetchingMetadata(true);
+      try {
+        const params = new URLSearchParams({ url: url.trim() });
+        const response = await fetch(`/api/metadata?${params}`, {
+          signal: abortController.signal,
+        });
+
+        // Check if request was aborted
+        if (abortController.signal.aborted) {
+          return;
+        }
+
+        if (response.ok) {
+          const metadata = await response.json();
+
+          // Check again if request was aborted during response parsing
+          if (abortController.signal.aborted) {
+            return;
+          }
+
+          // Use functional state updates to read latest state
+          setTitle(curr => curr || metadata.title || '');
+          setDescription(curr => curr || metadata.description || '');
+          setFavicon(metadata.favicon || '');
+        }
+      } catch (error) {
+        // Only log error if not aborted
+        if (!abortController.signal.aborted) {
+          console.error('Failed to fetch metadata:', error);
+        }
+      } finally {
+        // Only set fetching to false if this request wasn't aborted
+        if (!abortController.signal.aborted) {
+          setIsFetchingMetadata(false);
+        }
+      }
+    };
+
+    const timer = setTimeout(fetchMetadata, 500); // Debounce 500ms
+
+    return () => {
+      clearTimeout(timer);
+      abortController.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,6 +137,7 @@ export function AddBookmarkModal({ isOpen, onClose, onSuccess }: AddBookmarkModa
     setUrl('');
     setTitle('');
     setDescription('');
+    setFavicon('');
     onClose();
   };
 
@@ -101,25 +172,47 @@ export function AddBookmarkModal({ isOpen, onClose, onSuccess }: AddBookmarkModa
           <label htmlFor="url" className="text-sm font-medium">
             URL <span className="text-destructive">*</span>
           </label>
-          <Input
-            id="url"
-            type="url"
-            placeholder="https://example.com"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            required
-            disabled={loading}
-          />
+          <div className="relative">
+            <Input
+              id="url"
+              type="url"
+              placeholder="https://example.com"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              required
+              disabled={loading}
+              className={isFetchingMetadata || favicon ? 'pr-10' : ''}
+            />
+            {isFetchingMetadata && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            )}
+            {favicon && !isFetchingMetadata && (
+              <img
+                src={favicon}
+                alt=""
+                className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5"
+                onError={() => {
+                  // Clear the favicon state to remove the img from DOM
+                  setFavicon('');
+                }}
+              />
+            )}
+          </div>
         </div>
 
         <div className="space-y-2">
           <label htmlFor="title" className="text-sm font-medium">
             Title
+            {isFetchingMetadata && !title && (
+              <span className="ml-2 text-xs text-muted-foreground">(fetching...)</span>
+            )}
           </label>
           <Input
             id="title"
             type="text"
-            placeholder="Page title (optional)"
+            placeholder="Page title (auto-fetched if empty)"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             disabled={loading}
@@ -129,11 +222,14 @@ export function AddBookmarkModal({ isOpen, onClose, onSuccess }: AddBookmarkModa
         <div className="space-y-2">
           <label htmlFor="description" className="text-sm font-medium">
             Description
+            {isFetchingMetadata && !description && (
+              <span className="ml-2 text-xs text-muted-foreground">(fetching...)</span>
+            )}
           </label>
           <textarea
             id="description"
             className="w-full min-h-[80px] px-3 py-2 border border-input bg-background rounded-md text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            placeholder="Add a description (optional)"
+            placeholder="Page description (auto-fetched if empty)"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             disabled={loading}
