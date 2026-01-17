@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/nextjs';
+import * as Sentry from "@sentry/nextjs";
 
 export interface UserContext {
   id: string;
@@ -10,9 +10,7 @@ export interface UserContext {
 export function setUser(user: UserContext | null): void {
   if (user) {
     Sentry.setUser({
-      id: user.id,
-      email: user.email,
-      username: user.username,
+      ...user,
     });
   } else {
     Sentry.setUser(null);

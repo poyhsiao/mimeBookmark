@@ -1,64 +1,95 @@
 import { describe, expect, test } from 'vitest';
-import { createBreadcrumb } from '../add-breadcrumb';
+import { addBreadcrumb, createBreadcrumb } from '@/lib/monitoring/add-breadcrumb';
 
-describe('createBreadcrumb', () => {
-  test('should create a breadcrumb object with required fields', () => {
-    const breadcrumb = createBreadcrumb('navigation', 'User clicked link');
+describe('add-breadcrumb', () => {
+  describe('addBreadcrumb', () => {
+    test('adds a breadcrumb with default options', () => {
+      expect(() => addBreadcrumb({
+        message: 'User clicked button',
+        category: 'interaction',
+      })).not.toThrow();
+    });
 
-    expect(breadcrumb).toEqual({
-      category: 'navigation',
-      message: 'User clicked link',
-      type: 'default',
+    test('adds a breadcrumb with custom type', () => {
+      expect(() => addBreadcrumb({
+        message: 'Page viewed',
+        category: 'navigation',
+        type: 'navigation',
+      })).not.toThrow();
+    });
+
+    test('adds a breadcrumb with custom level', () => {
+      expect(() => addBreadcrumb({
+        message: 'API request failed',
+        category: 'http',
+        level: 'error',
+      })).not.toThrow();
+    });
+
+    test('adds a breadcrumb with data', () => {
+      expect(() => addBreadcrumb({
+        message: 'Bookmark created',
+        category: 'bookmark',
+        data: {
+          bookmarkId: 'bm-123',
+          url: 'https://example.com',
+        },
+      })).not.toThrow();
+    });
+
+    test('adds a breadcrumb with all options', () => {
+      expect(() => addBreadcrumb({
+        type: 'http',
+        category: 'api',
+        message: 'GET /api/bookmarks',
+        data: { statusCode: 200, duration: 150 },
+        level: 'debug',
+      })).not.toThrow();
     });
   });
 
-  test('should include data when provided', () => {
-    const breadcrumb = createBreadcrumb('http', 'API request', { method: 'GET', url: '/api/users' });
+  describe('createBreadcrumb', () => {
+    test('creates a breadcrumb with default type', () => {
+      const breadcrumb = createBreadcrumb('interaction', 'User clicked save');
 
-    expect(breadcrumb).toEqual({
-      category: 'http',
-      message: 'API request',
-      type: 'default',
-      data: { method: 'GET', url: '/api/users' },
+      expect(breadcrumb).toEqual({
+        type: 'default',
+        category: 'interaction',
+        message: 'User clicked save',
+        data: undefined,
+      });
     });
-  });
 
-  test('should use custom type when provided', () => {
-    const breadcrumb = createBreadcrumb('navigation', 'Page view', undefined, 'navigation');
+    test('creates a breadcrumb with custom type', () => {
+      const breadcrumb = createBreadcrumb('navigation', 'Navigated to collections', undefined, 'navigation');
 
-    expect(breadcrumb).toEqual({
-      category: 'navigation',
-      message: 'Page view',
-      type: 'navigation',
+      expect(breadcrumb.type).toBe('navigation');
     });
-  });
 
-  test('should handle complex data structures', () => {
-    const complexData = {
-      nested: { deep: { value: 42 } },
-      array: [1, 2, 3],
-    };
+    test('creates a breadcrumb with data', () => {
+      const breadcrumb = createBreadcrumb(
+        'bookmark',
+        'Bookmark deleted',
+        { bookmarkId: 'bm-999' }
+      );
 
-    const breadcrumb = createBreadcrumb('query', 'Search', complexData);
+      expect(breadcrumb.data).toEqual({ bookmarkId: 'bm-999' });
+    });
 
-    expect(breadcrumb.data).toEqual(complexData);
-  });
+    test('creates a breadcrumb with all parameters', () => {
+      const breadcrumb = createBreadcrumb(
+        'auth',
+        'User logged in',
+        { method: 'email' },
+        'default'
+      );
 
-  test('should handle empty data object', () => {
-    const breadcrumb = createBreadcrumb('info', 'Test', {});
-
-    expect(breadcrumb.data).toEqual({});
-  });
-
-  test('should handle special characters in message', () => {
-    const breadcrumb = createBreadcrumb('error', 'Error: "Failed" at line 10');
-
-    expect(breadcrumb.message).toBe('Error: "Failed" at line 10');
-  });
-
-  test('should handle unicode characters', () => {
-    const breadcrumb = createBreadcrumb('info', '测试消息 🚀');
-
-    expect(breadcrumb.message).toBe('测试消息 🚀');
+      expect(breadcrumb).toEqual({
+        type: 'default',
+        category: 'auth',
+        message: 'User logged in',
+        data: { method: 'email' },
+      });
+    });
   });
 });

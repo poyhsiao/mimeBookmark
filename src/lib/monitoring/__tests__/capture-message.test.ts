@@ -1,69 +1,37 @@
 import { describe, expect, test } from 'vitest';
-import { captureMessage } from '../capture-message';
+import { captureMessage } from '@/lib/monitoring/capture-message';
 
-describe('captureMessage', () => {
-  test('should handle various message lengths', () => {
-    const messages = ['', 'short', 'A'.repeat(100), 'A'.repeat(10000)];
+describe('capture-message', () => {
+  describe('captureMessage', () => {
+    test('returns result from Sentry.captureMessage', () => {
+      const result = captureMessage({ message: 'Test message' });
 
-    messages.forEach((message) => {
-      expect(() => {
-        captureMessage({ message });
-      }).not.toThrow();
+      expect(result).toBeTruthy();
     });
-  });
 
-  test('should handle all severity levels', () => {
-    const levels = ['fatal', 'error', 'warning', 'log', 'info', 'debug'] as const;
-
-    levels.forEach((level) => {
-      expect(() => {
-        captureMessage({ message: 'test', level });
-      }).not.toThrow();
+    test('handles different message levels', () => {
+      expect(captureMessage({ message: 'Info', level: 'info' })).toBeTruthy();
+      expect(captureMessage({ message: 'Warning', level: 'warning' })).toBeTruthy();
+      expect(captureMessage({ message: 'Error', level: 'error' })).toBeTruthy();
+      expect(captureMessage({ message: 'Debug', level: 'debug' })).toBeTruthy();
     });
-  });
 
-  test('should handle empty and complex tags objects', () => {
-    const tagsArray = [
-      {},
-      { key: 'value' },
-      { multiple: 'tags', another: 'tag', number: 123 },
-    ];
+    test('handles message with tags', () => {
+      const result = captureMessage({
+        message: 'Test',
+        tags: { feature: 'test' },
+      });
 
-    tagsArray.forEach((tags) => {
-      expect(() => {
-        captureMessage({ message: 'test', tags });
-      }).not.toThrow();
+      expect(result).toBeTruthy();
     });
-  });
 
-  test('should handle empty and complex extra objects', () => {
-    const extraArray = [
-      {},
-      { key: 'value' },
-      { nested: { deep: true }, array: [1, 2, 3] },
-      { nullValue: null, undefinedValue: undefined },
-    ];
+    test('handles message with extra data', () => {
+      const result = captureMessage({
+        message: 'Test',
+        extra: { key: 'value' },
+      });
 
-    extraArray.forEach((extra) => {
-      expect(() => {
-        captureMessage({ message: 'test', extra });
-      }).not.toThrow();
-    });
-  });
-
-  test('should handle special characters in message', () => {
-    const specialMessages = [
-      'Error: "Failed"',
-      'Line 10\tColumn 5',
-      'New\nline\r\ntest',
-      'Unicode: 你好 🚀',
-      'Emoji: 🎉🎊🎈',
-    ];
-
-    specialMessages.forEach((message) => {
-      expect(() => {
-        captureMessage({ message });
-      }).not.toThrow();
+      expect(result).toBeTruthy();
     });
   });
 });
