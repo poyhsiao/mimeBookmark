@@ -3,6 +3,55 @@ import { createClient } from '@/lib/supabase/server';
 import { getCurrentUser } from '@/lib/auth/server';
 import { JSDOM } from 'jsdom';
 
+// Type definitions for imported data
+interface ImportedBookmark {
+  url: string;
+  title?: string;
+  description?: string;
+  favicon?: string;
+  image?: string;
+  // Normalized OG properties - accepting both naming conventions
+  ogTitle?: string;
+  ogDescription?: string;
+  notes?: string;
+  rating?: number;
+  isFavorite?: boolean;
+  isArchived?: boolean;
+  tags?: string[];
+  createdAt?: string;
+}
+
+interface ImportedTag {
+  name: string;
+  color?: string;
+}
+
+interface ImportedCollection {
+  name: string;
+  description?: string;
+}
+
+// Helper function to normalize imported bookmark data
+function normalizeImportedBookmark(bookmark: any): ImportedBookmark {
+  return {
+    url: bookmark.url,
+    title: bookmark.title,
+    description: bookmark.description,
+    favicon: bookmark.favicon,
+    image: bookmark.image,
+    // Normalize OG title - prefer camelCase, fall back to snake_case
+    ogTitle: bookmark.ogTitle || bookmark.og_title,
+    // Normalize OG description - prefer camelCase, fall back to snake_case
+    ogDescription: bookmark.ogDescription || bookmark.og_description,
+    notes: bookmark.notes,
+    rating: bookmark.rating,
+    isFavorite: bookmark.isFavorite,
+    isArchived: bookmark.isArchived,
+    tags: bookmark.tags,
+    createdAt: bookmark.createdAt,
+  };
+}
+
 export async function POST(request: NextRequest) {
   const { user } = await getCurrentUser();
 
@@ -26,9 +75,9 @@ export async function POST(request: NextRequest) {
     const fileName = file.name.toLowerCase();
 
     // Determine format from content type or file extension
-    let bookmarks: any[] = [];
-    let collections: any[] = [];
-    let tags: any[] = [];
+    let bookmarks: ImportedBookmark[] = [];
+    let collections: ImportedCollection[] = [];
+    let tags: ImportedTag[] = [];
 
     if (
       contentType === 'application/json' ||
@@ -72,6 +121,9 @@ export async function POST(request: NextRequest) {
       bookmarks = rawBookmarks || [];
       collections = rawCollections || [];
       tags = rawTags || [];
+      
+      // Normalize bookmark data to ensure consistent property names
+      bookmarks = bookmarks.map(normalizeImportedBookmark);
     } else if (
       contentType === 'text/html' ||
       contentType === 'application/xhtml+xml' ||
@@ -246,8 +298,8 @@ export async function POST(request: NextRequest) {
               description: bookmark.description || null,
               favicon_url: bookmark.favicon || null,
               og_image: bookmark.image || null,
-              og_title: bookmark.ogTitle || bookmark.og_title || null,
-              og_description: bookmark.ogDescription || bookmark.og_description || null,
+              og_title: bookmark.ogTitle || null,
+              og_description: bookmark.ogDescription || null,
               user_notes: bookmark.notes || null,
               user_rating: bookmark.rating || null,
               is_favorite: bookmark.isFavorite || false,
@@ -321,8 +373,8 @@ export async function POST(request: NextRequest) {
           description: bookmark.description || null,
           favicon_url: bookmark.favicon || null,
           og_image: bookmark.image || null,
-          og_title: bookmark.ogTitle || bookmark.og_title || null,
-          og_description: bookmark.ogDescription || bookmark.og_description || null,
+          og_title: bookmark.ogTitle || null,
+          og_description: bookmark.ogDescription || null,
           user_notes: bookmark.notes || null,
           user_rating: bookmark.rating || null,
           is_favorite: bookmark.isFavorite || false,
@@ -378,15 +430,15 @@ export async function POST(request: NextRequest) {
 }
 
 interface ParsedNetscapeResult {
-  bookmarks: any[];
-  collections: any[];
-  tags: any[];
+  bookmarks: ImportedBookmark[];
+  collections: ImportedCollection[];
+  tags: ImportedTag[];
 }
 
 
 function parseNetscapeHtml(html: string): ParsedNetscapeResult {
-  const bookmarks: any[] = [];
-  const collections: any[] = [];
+  const bookmarks: ImportedBookmark[] = [];
+  const collections: ImportedCollection[] = [];
   const uniqueTagNames = new Set<string>(); // Use Set for deduplication
 
   try {
