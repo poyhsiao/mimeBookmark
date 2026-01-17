@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
-import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
 
 interface CollectionNode {
   id: string;
@@ -19,7 +19,7 @@ function buildTree(collections: any[]): CollectionNode[] {
   const roots: CollectionNode[] = [];
 
   // First pass: create all nodes
-  collections.forEach(col => {
+  collections.forEach((col) => {
     map.set(col.id, {
       id: col.id,
       name: col.name,
@@ -35,7 +35,7 @@ function buildTree(collections: any[]): CollectionNode[] {
   });
 
   // Second pass: link children to parents
-  collections.forEach(col => {
+  collections.forEach((col) => {
     const node = map.get(col.id)!;
     if (col.parent_id && map.has(col.parent_id)) {
       const parent = map.get(col.parent_id)!;
@@ -48,7 +48,7 @@ function buildTree(collections: any[]): CollectionNode[] {
   // Sort each level by sort_order
   const sortNodes = (nodes: CollectionNode[]) => {
     nodes.sort((a, b) => a.sort_order - b.sort_order);
-    nodes.forEach(node => sortNodes(node.children));
+    nodes.forEach((node) => sortNodes(node.children));
   };
 
   sortNodes(roots);
@@ -57,19 +57,32 @@ function buildTree(collections: any[]): CollectionNode[] {
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const { data: collections, error } = await supabase
-      .from('collections')
-      .select('id, name, description, color, icon, is_public, is_favorite, sort_order, parent_id, bookmarks_count')
-      .eq('user_id', user.id)
-      .is('deleted_at', null)
-      .order('sort_order', { ascending: true });
+    const search = request.nextUrl.searchParams.get("search");
+
+    let query = supabase
+      .from("collections")
+      .select(
+        "id, name, description, color, icon, is_public, is_favorite, sort_order, parent_id, bookmarks_count",
+      )
+      .eq("user_id", user.id)
+      .is("deleted_at", null);
+
+    if (search) {
+      query = query.ilike("name", `%${search}%`);
+    }
+
+    const { data: collections, error } = await query.order("sort_order", {
+      ascending: true,
+    });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -79,7 +92,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ tree });
   } catch (error) {
-    console.error('Get collection tree error:', error);
-    return NextResponse.json({ error: 'Failed to get collection tree' }, { status: 500 });
+    console.error("Get collection tree error:", error);
+    return NextResponse.json(
+      { error: "Failed to get collection tree" },
+      { status: 500 },
+    );
   }
 }

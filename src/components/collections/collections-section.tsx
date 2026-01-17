@@ -53,8 +53,8 @@ export function CollectionsSection({
   }, [debouncedSearch, limit, fetchCollections]);
 
   useEffect(() => {
-    fetchTree();
-  }, [fetchTree]);
+    fetchTree({ search: debouncedSearch });
+  }, [debouncedSearch, fetchTree]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -83,15 +83,26 @@ export function CollectionsSection({
     [moveCollection, fetchTree],
   );
 
+  const handleToggleFavorite = useCallback(
+    async (id: string, currentIsFavorite: boolean) => {
+      const success = await toggleFavorite(id, currentIsFavorite);
+      if (success) {
+        fetchTree({ search: debouncedSearch });
+      }
+      return success;
+    },
+    [toggleFavorite, fetchTree, debouncedSearch],
+  );
+
   const handleDeleteCollection = useCallback(
     async (id: string) => {
       const success = await deleteCollection(id);
       if (success) {
-        fetchTree();
+        fetchTree({ search: debouncedSearch });
       }
       return success;
     },
-    [deleteCollection, fetchTree],
+    [deleteCollection, fetchTree, debouncedSearch],
   );
 
   const displayedCollections = limit
@@ -210,10 +221,8 @@ export function CollectionsSection({
             <CollectionCard
               key={collection.id}
               collection={collection}
-              onDelete={deleteCollection}
-              onToggleFavorite={(id, currentIsFavorite) =>
-                toggleFavorite(id, currentIsFavorite)
-              }
+              onDelete={handleDeleteCollection}
+              onToggleFavorite={handleToggleFavorite}
             />
           ))}
         </div>

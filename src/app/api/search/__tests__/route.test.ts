@@ -50,11 +50,9 @@ describe("Search API", () => {
         count: 1,
         error: null,
       }),
-      delete: vi.fn().mockReturnThis(),
-      // Make it thenable for await
-      then: vi.fn().mockImplementation((resolve) => {
-        resolve({ data: null, error: null });
-      }),
+      delete: vi.fn().mockResolvedValue({ data: null, error: null }),
+      upsert: vi.fn().mockResolvedValue({ data: null, error: null }),
+      single: vi.fn().mockResolvedValue({ data: null, error: null }),
     };
 
     mockSupabase.from.mockImplementation((table: string) => {
@@ -65,18 +63,15 @@ describe("Search API", () => {
           eq: vi.fn().mockReturnThis(),
           is: vi.fn().mockReturnThis(),
           order: vi.fn().mockReturnThis(),
-          limit: vi.fn().mockReturnThis(),
-          then: vi.fn().mockImplementation((resolve) => {
-            resolve({
-              data: [
-                {
-                  id: "1",
-                  query: "test query",
-                  created_at: new Date().toISOString(),
-                },
-              ],
-              error: null,
-            });
+          limit: vi.fn().mockResolvedValue({
+            data: [
+              {
+                id: "1",
+                query: "test query",
+                created_at: new Date().toISOString(),
+              },
+            ],
+            error: null,
           }),
         };
       }

@@ -70,7 +70,7 @@ interface UseCollectionsReturn {
     search?: string;
     sort?: "newest" | "oldest" | "name";
   }) => Promise<void>;
-  fetchTree: () => Promise<void>;
+  fetchTree: (options?: { search?: string }) => Promise<void>;
   createCollection: (collection: {
     name: string;
     description?: string;
@@ -237,12 +237,26 @@ export function useCollections(): UseCollectionsReturn {
 
   const toggleFavorite = useCallback(
     async (id: string, currentIsFavorite: boolean): Promise<boolean> => {
-      // Optimistic update
+      // Optimistic update for collections
       setCollections((prev) =>
         prev.map((c) =>
           c.id === id ? { ...c, is_favorite: !currentIsFavorite } : c,
         ),
       );
+
+      // Optimistic update for tree (recursive)
+      const updateTreeNode = (nodes: CollectionNode[]): CollectionNode[] => {
+        return nodes.map((node) => {
+          if (node.id === id) {
+            return { ...node, is_favorite: !currentIsFavorite };
+          }
+          if (node.children.length > 0) {
+            return { ...node, children: updateTreeNode(node.children) };
+          }
+          return node;
+        });
+      };
+      setTree((prev) => updateTreeNode(prev));
 
       const success = await updateCollection(id, {
         is_favorite: !currentIsFavorite,
@@ -255,6 +269,7 @@ export function useCollections(): UseCollectionsReturn {
             c.id === id ? { ...c, is_favorite: currentIsFavorite } : c,
           ),
         );
+        setTree((prev) => updateTreeNode(prev)); // Toggling back uses the same logic
       }
 
       return success;
@@ -262,12 +277,15 @@ export function useCollections(): UseCollectionsReturn {
     [updateCollection],
   );
 
-  const fetchTree = useCallback(async () => {
+  const fetchTree = useCallback(async (options?: { search?: string }) => {
     setIsFetchingTree(true);
     setError(null);
 
     try {
-      const response = await fetch("/api/collections/tree");
+      const params = new URLSearchParams();
+      if (options?.search) params.set("search", options.search);
+
+      const response = await fetch(`/api/collections/tree?${params}`);
       const data = await response.json();
 
       if (!response.ok) {
