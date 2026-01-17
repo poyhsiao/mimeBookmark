@@ -237,7 +237,7 @@ export function CollectionsSection({
         collection={editingCollection}
         onSuccess={() => {
           fetchCollections({ search: debouncedSearch, limit });
-          fetchTree();
+          fetchTree({ search: debouncedSearch });
           setEditingCollection(null);
         }}
       />
