@@ -244,19 +244,26 @@ export function useCollections(): UseCollectionsReturn {
         ),
       );
 
-      // Optimistic update for tree (recursive)
-      const updateTreeNode = (nodes: CollectionNode[]): CollectionNode[] => {
+      const updateTreeNodeWithValue = (
+        nodes: CollectionNode[],
+        targetId: string,
+        value: boolean,
+      ): CollectionNode[] => {
         return nodes.map((node) => {
-          if (node.id === id) {
-            return { ...node, is_favorite: !currentIsFavorite };
+          if (node.id === targetId) {
+            return { ...node, is_favorite: value };
           }
           if (node.children.length > 0) {
-            return { ...node, children: updateTreeNode(node.children) };
+            return {
+              ...node,
+              children: updateTreeNodeWithValue(node.children, targetId, value),
+            };
           }
           return node;
         });
       };
-      setTree((prev) => updateTreeNode(prev));
+
+      setTree((prev) => updateTreeNodeWithValue(prev, id, !currentIsFavorite));
 
       const success = await updateCollection(id, {
         is_favorite: !currentIsFavorite,
@@ -269,7 +276,7 @@ export function useCollections(): UseCollectionsReturn {
             c.id === id ? { ...c, is_favorite: currentIsFavorite } : c,
           ),
         );
-        setTree((prev) => updateTreeNode(prev)); // Toggling back uses the same logic
+        setTree((prev) => updateTreeNodeWithValue(prev, id, currentIsFavorite));
       }
 
       return success;

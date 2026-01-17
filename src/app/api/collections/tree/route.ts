@@ -11,6 +11,7 @@ interface CollectionNode {
   is_favorite: boolean;
   sort_order: number;
   bookmarks_count: number;
+  parent_id?: string | null;
   children: CollectionNode[];
 }
 
@@ -30,6 +31,7 @@ function buildTree(collections: any[]): CollectionNode[] {
       is_favorite: col.is_favorite,
       sort_order: col.sort_order,
       bookmarks_count: col.bookmarks_count || 0,
+      parent_id: col.parent_id ?? null,
       children: [],
     });
   });
@@ -41,6 +43,7 @@ function buildTree(collections: any[]): CollectionNode[] {
       const parent = map.get(col.parent_id)!;
       parent.children.push(node);
     } else {
+      node.parent_id = null; // Ensure it's null if it's a root (parent not found in current set)
       roots.push(node);
     }
   });

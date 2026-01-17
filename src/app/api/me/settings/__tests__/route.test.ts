@@ -61,4 +61,41 @@ describe("PUT /api/me/settings", () => {
     const data = await response.json();
     expect(data.error).toBe("Failed to update settings");
   });
+
+  test("returns 500 when RPC returns error object", async () => {
+    vi.mocked(mockSupabase.rpc).mockResolvedValue({
+      data: null,
+      error: { message: "Database function failed" },
+    } as any);
+
+    const request = new NextRequest(
+      new URL("/api/me/settings", "http://localhost"),
+      {
+        method: "PUT",
+        body: JSON.stringify({ theme: "dark" }),
+      },
+    );
+
+    const response = await PUT(request);
+
+    expect(response.status).toBe(500);
+    const data = await response.json();
+    expect(data.error).toBe("Database function failed");
+  });
+
+  test("returns 400 for null body", async () => {
+    const request = new NextRequest(
+      new URL("/api/me/settings", "http://localhost"),
+      {
+        method: "PUT",
+        body: "null",
+      },
+    );
+
+    const response = await PUT(request);
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe("Invalid JSON body");
+  });
 });

@@ -77,10 +77,10 @@ export function CollectionsSection({
     async (id: string, parent_id: string | null) => {
       const success = await moveCollection(id, parent_id);
       if (success) {
-        fetchTree();
+        fetchTree({ search: debouncedSearch });
       }
     },
-    [moveCollection, fetchTree],
+    [moveCollection, fetchTree, debouncedSearch],
   );
 
   const handleToggleFavorite = useCallback(
@@ -185,7 +185,7 @@ export function CollectionsSection({
           ) : (
             <CollectionTree
               tree={tree}
-              onToggleFavorite={toggleFavorite}
+              onToggleFavorite={handleToggleFavorite}
               onDelete={handleDeleteCollection}
               onEdit={handleEditCollection}
               onMove={handleMoveCollection}
