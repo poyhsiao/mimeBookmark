@@ -25,13 +25,17 @@ function checkRateLimit(ip: string): boolean {
 
   recentRequests.push(now);
   requestLog.set(ip, recentRequests);
+
+  // Opportunistically clean up stale entries on each request
+  // This avoids the need for a background timer in serverless environments
+  cleanupStaleEntries();
+
   return true;
 }
 
-// Background cleaner to remove stale IP entries
-// Runs every RATE_LIMIT_WINDOW + 30 seconds to clean up entries
-// that haven't been accessed recently
-const CLEANUP_INTERVAL = RATE_LIMIT_WINDOW + 30000;
+// Cleanup function to remove stale IP entries
+// Called opportunistically from checkRateLimit to avoid background timers in serverless
+const CLEANUP_INTERVAL = RATE_LIMIT_WINDOW + 30000; // Keep constant for reference
 const cleanupStaleEntries = () => {
   const now = Date.now();
   const staleThreshold = RATE_LIMIT_WINDOW + 10000; // Add 10s buffer
@@ -44,10 +48,27 @@ const cleanupStaleEntries = () => {
   }
 };
 
-// Start the background cleaner (only once on module init)
-if (typeof globalThis !== 'undefined' && !(globalThis as any).__rateLimitCleanerStarted) {
-  (globalThis as any).__rateLimitCleanerStarted = true;
-  setInterval(cleanupStaleEntries, CLEANUP_INTERVAL);
+// Note: No module-level setInterval in serverless environments
+// Cleanup is called opportunistically from checkRateLimit instead
+
+/**
+ * Converts IPv4-mapped IPv6 hexadecimal format to dotted decimal format
+ * e.g., "7f00:1" -> "127.0.0.1"
+ */
+function convertIPv4MappedHexToDecimal(hexPart: string): string | null {
+  const hexMatch = hexPart.match(/^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+  if (!hexMatch) {
+    return null;
+  }
+
+  const high = parseInt(hexMatch[1], 16);
+  const low = parseInt(hexMatch[2], 16);
+  const byte1 = (high >> 8) & 0xff;
+  const byte2 = high & 0xff;
+  const byte3 = (low >> 8) & 0xff;
+  const byte4 = low & 0xff;
+
+  return `${byte1}.${byte2}.${byte3}.${byte4}`;
 }
 
 function isPrivateIP(ip: string): boolean {
@@ -91,11 +112,42 @@ function isPrivateIP(ip: string): boolean {
     // ::1 - Loopback
     if (lower === '::1' || lower === '0:0:0:0:0:0:0:1') return true;
 
-    // fe80::/10 - Link-local
-    if (lower.startsWith('fe80:')) return true;
+    // fe80::/10 - Link-local (fe80-febf)
+    // The third nibble must be 8, 9, a, or b to match the /10 prefix
+    if (lower.startsWith('fe')) {
+      const thirdNibble = lower.charAt(2);
+      if (thirdNibble === '8' || thirdNibble === '9' || thirdNibble === 'a' || thirdNibble === 'b') {
+        return true;
+      }
+    }
 
     // fc00::/7 - Unique Local Address (ULA)
     if (lower.startsWith('fc') || lower.startsWith('fd')) return true;
+
+    // IPv4-mapped IPv6 addresses (::ffff:x.x.x.x or ::ffff:xxxx:xxxx)
+    // Note: Node.js URL parser normalizes ::ffff:x.x.x.x to ::ffff:xxxx:xxxx format
+    if (lower.includes('::ffff:')) {
+      const parts = lower.split('::ffff:');
+      if (parts.length === 2) {
+        let ipv4Part = parts[1];
+
+        // Handle ::ffff:0:x.x.x.x format
+        if (ipv4Part.startsWith('0:')) {
+          ipv4Part = ipv4Part.substring(2);
+        }
+
+        // Check if it's in dotted decimal format (x.x.x.x)
+        if (net.isIPv4(ipv4Part)) {
+          return isPrivateIP(ipv4Part);
+        }
+
+        // Handle hexadecimal format (xxxx:xxxx)
+        const ipv4Decimal = convertIPv4MappedHexToDecimal(ipv4Part);
+        if (ipv4Decimal) {
+          return isPrivateIP(ipv4Decimal);
+        }
+      }
+    }
 
     return false;
   }
