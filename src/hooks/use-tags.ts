@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback } from "react";
 
 export interface Tag {
   id: string;
@@ -28,13 +28,16 @@ export interface UseTagsReturn {
     page?: number;
     limit?: number;
     search?: string;
-    sort?: 'newest' | 'oldest' | 'name';
+    sort?: "newest" | "oldest" | "name";
   }) => Promise<void>;
   createTag: (tag: { name: string; color?: string }) => Promise<Tag | null>;
   updateTag: (id: string, updates: Partial<Tag>) => Promise<boolean>;
   deleteTag: (id: string) => Promise<boolean>;
   addTagsToBookmark: (bookmarkId: string, tagIds: string[]) => Promise<boolean>;
-  removeTagsFromBookmark: (bookmarkId: string, tagIds: string[]) => Promise<boolean>;
+  removeTagsFromBookmark: (
+    bookmarkId: string,
+    tagIds: string[],
+  ) => Promise<boolean>;
 }
 
 export function useTags(): UseTagsReturn {
@@ -44,163 +47,182 @@ export function useTags(): UseTagsReturn {
   const loading = loadingCount > 0;
   const [error, setError] = useState<string | null>(null);
 
-  const fetchTags = useCallback(async (options?: {
-    page?: number;
-    limit?: number;
-    search?: string;
-    sort?: 'newest' | 'oldest' | 'name';
-  }) => {
-    setLoadingCount(c => c + 1);
-    setError(null);
+  const fetchTags = useCallback(
+    async (options?: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      sort?: "newest" | "oldest" | "name";
+    }) => {
+      setLoadingCount((c) => c + 1);
+      setError(null);
 
-    try {
-      const params = new URLSearchParams();
-      if (options?.page !== undefined) params.set('page', options.page.toString());
-      if (options?.limit !== undefined) params.set('limit', options.limit.toString());
-      if (options?.search) params.set('search', options.search);
-      if (options?.sort) params.set('sort', options.sort);
+      try {
+        const params = new URLSearchParams();
+        if (options?.page !== undefined)
+          params.set("page", options.page.toString());
+        if (options?.limit !== undefined)
+          params.set("limit", options.limit.toString());
+        if (options?.search) params.set("search", options.search);
+        if (options?.sort) params.set("sort", options.sort);
 
-      const response = await fetch(`/api/tags?${params}`);
-      const data = await response.json();
+        const response = await fetch(`/api/tags?${params}`);
+        const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch tags');
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to fetch tags");
+        }
+
+        setTags(data.tags);
+        setPagination(data.pagination);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred");
+      } finally {
+        setLoadingCount((c) => c - 1);
       }
+    },
+    [],
+  );
 
-      setTags(data.tags);
-      setPagination(data.pagination);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoadingCount(c => c - 1);
-    }
-  }, []);
+  const createTag = useCallback(
+    async (tag: { name: string; color?: string }): Promise<Tag | null> => {
+      setLoadingCount((c) => c + 1);
+      setError(null);
 
-  const createTag = useCallback(async (tag: { name: string; color?: string }): Promise<Tag | null> => {
-    setLoadingCount(c => c + 1);
-    setError(null);
+      try {
+        const response = await fetch("/api/tags", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(tag),
+        });
+        const data = await response.json();
 
-    try {
-      const response = await fetch('/api/tags', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(tag),
-      });
-      const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to create tag");
+        }
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create tag');
+        setTags((prev) => [data.tag, ...prev]);
+        return data.tag;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred");
+        return null;
+      } finally {
+        setLoadingCount((c) => c - 1);
       }
+    },
+    [],
+  );
 
-      setTags(prev => [data.tag, ...prev]);
-      return data.tag;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      return null;
-    } finally {
-      setLoadingCount(c => c - 1);
-    }
-  }, []);
+  const updateTag = useCallback(
+    async (id: string, updates: Partial<Tag>): Promise<boolean> => {
+      setLoadingCount((c) => c + 1);
+      setError(null);
 
-  const updateTag = useCallback(async (id: string, updates: Partial<Tag>): Promise<boolean> => {
-    setLoadingCount(c => c + 1);
-    setError(null);
+      try {
+        const response = await fetch(`/api/tags/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updates),
+        });
+        const data = await response.json();
 
-    try {
-      const response = await fetch(`/api/tags/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      });
-      const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to update tag");
+        }
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to update tag');
+        setTags((prev) =>
+          prev.map((t) => (t.id === id ? { ...t, ...data.tag } : t)),
+        );
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred");
+        return false;
+      } finally {
+        setLoadingCount((c) => c - 1);
       }
-
-      setTags(prev => prev.map(t => t.id === id ? { ...t, ...data.tag } : t));
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      return false;
-    } finally {
-      setLoadingCount(c => c - 1);
-    }
-  }, []);
+    },
+    [],
+  );
 
   const deleteTag = useCallback(async (id: string): Promise<boolean> => {
-    setLoadingCount(c => c + 1);
+    setLoadingCount((c) => c + 1);
     setError(null);
 
     try {
       const response = await fetch(`/api/tags/${id}`, {
-        method: 'DELETE',
+        method: "DELETE",
       });
 
       if (!response.ok) {
-        throw new Error('Failed to delete tag');
+        throw new Error("Failed to delete tag");
       }
 
-      setTags(prev => prev.filter(t => t.id !== id));
+      setTags((prev) => prev.filter((t) => t.id !== id));
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError(err instanceof Error ? err.message : "An error occurred");
       return false;
     } finally {
-      setLoadingCount(c => c - 1);
+      setLoadingCount((c) => c - 1);
     }
   }, []);
 
-  const addTagsToBookmark = useCallback(async (bookmarkId: string, tagIds: string[]): Promise<boolean> => {
-    setLoadingCount(c => c + 1);
-    setError(null);
+  const addTagsToBookmark = useCallback(
+    async (bookmarkId: string, tagIds: string[]): Promise<boolean> => {
+      setLoadingCount((c) => c + 1);
+      setError(null);
 
-    try {
-      const response = await fetch('/api/tags/bookmarks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookmark_id: bookmarkId, tag_ids: tagIds }),
-      });
-      const data = await response.json();
+      try {
+        const response = await fetch("/api/tags/bookmarks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bookmark_id: bookmarkId, tag_ids: tagIds }),
+        });
+        const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to add tags to bookmark');
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to add tags to bookmark");
+        }
+
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred");
+        return false;
+      } finally {
+        setLoadingCount((c) => c - 1);
       }
+    },
+    [],
+  );
 
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      return false;
-    } finally {
-      setLoadingCount(c => c - 1);
-    }
-  }, []);
+  const removeTagsFromBookmark = useCallback(
+    async (bookmarkId: string, tagIds: string[]): Promise<boolean> => {
+      setLoadingCount((c) => c + 1);
+      setError(null);
 
-  const removeTagsFromBookmark = useCallback(async (bookmarkId: string, tagIds: string[]): Promise<boolean> => {
-    setLoadingCount(c => c + 1);
-    setError(null);
+      try {
+        const params = new URLSearchParams();
+        params.set("bookmark_id", bookmarkId);
+        params.set("tag_ids", tagIds.join(","));
 
-    try {
-      const params = new URLSearchParams();
-      params.set('bookmark_id', bookmarkId);
-      tagIds.forEach(id => params.append('tag_ids', id));
+        const response = await fetch(`/api/tags/bookmarks?${params}`, {
+          method: "DELETE",
+        });
 
-      const response = await fetch(`/api/tags/bookmarks?${params}`, {
-        method: 'DELETE',
-      });
+        if (!response.ok) {
+          throw new Error("Failed to remove tags from bookmark");
+        }
 
-      if (!response.ok) {
-        throw new Error('Failed to remove tags from bookmark');
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred");
+        return false;
+      } finally {
+        setLoadingCount((c) => c - 1);
       }
-
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      return false;
-    } finally {
-      setLoadingCount(c => c - 1);
-    }
-  }, []);
+    },
+    [],
+  );
 
   return {
     tags,
