@@ -1,12 +1,12 @@
 import Stripe from 'stripe';
-import { getWebhookSecret } from './server';
+import { getWebhookSecret, stripe } from './server';
 
 export function constructWebhookEvent(
   payload: string | Buffer,
   signature: string
 ): Stripe.Event {
   const webhookSecret = getWebhookSecret();
-  return Stripe.Webhooks.constructEvent(payload, signature, webhookSecret) as Stripe.Event;
+  return stripe.webhooks.constructEvent(payload, signature, webhookSecret) as Stripe.Event;
 }
 
 export type WebhookHandler<T = unknown> = (
@@ -61,6 +61,25 @@ export async function handleWebhookEvent(
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
   console.log('Checkout completed:', session.id);
+
+  let subscription: Stripe.Subscription;
+
+  if (typeof session.subscription === 'string') {
+    try {
+      subscription = await stripe.subscriptions.retrieve(session.subscription);
+    } catch (error) {
+      console.error('Failed to retrieve subscription:', error);
+      return;
+    }
+  } else if (session.subscription && typeof session.subscription === 'object') {
+    subscription = session.subscription;
+  } else {
+    console.error('No valid subscription found in checkout session');
+    return;
+  }
+
+  const priceId = subscription.items.data[0]?.price.id;
+  console.log('Subscription price ID:', priceId);
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription): Promise<void> {
