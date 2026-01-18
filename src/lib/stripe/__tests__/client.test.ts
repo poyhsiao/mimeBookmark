@@ -1,4 +1,5 @@
 import { describe, expect, test, vi, beforeEach } from 'vitest';
+// loadStripe is intentionally imported to ensure vi.mock setup runs for client tests
 import { loadStripe } from '@stripe/stripe-js';
 import { getStripePublishableKey, isStripeEnabled } from '../client';
 

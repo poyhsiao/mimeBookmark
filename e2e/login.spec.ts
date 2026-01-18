@@ -32,12 +32,17 @@ test.describe('Login Page', () => {
   });
 
   test('should validate email format on submit', async ({ page }) => {
-    await page.goto('/login');
-    // Submit form without filling anything to see validation
+    await page.fill('input[type="email"]', 'bad-email');
     await page.click('button[type="submit"]');
-    // At minimum, should show required field errors
-    const emailError = await page.textContent('label[for="email"]');
-    expect(emailError).toBeTruthy();
+
+    // Check for validation error on input
+    const emailInput = page.locator('input[type="email"]');
+    const isValid = await emailInput.evaluate(e => (e as HTMLInputElement).checkValidity());
+    expect(isValid).toBe(false);
+
+    // Or check for error message UI if available
+    const errorMsg = page.locator('text=Invalid email').or(page.locator('[class*="error"]'));
+    await expect(errorMsg.first()).toBeVisible();
   });
 
   test('should show error for short password', async ({ page }) => {

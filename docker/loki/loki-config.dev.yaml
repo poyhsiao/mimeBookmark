@@ -1,0 +1,106 @@
+# Loki Configuration
+# ENVIRONMENT: This configuration is intended for DEVELOPMENT/SINGLE-NODE use
+# For production/multi-node setup, use loki-config.yaml instead
+#
+# SECURITY NOTES:
+# - Authentication is DISABLED for development (auth_enabled: false)
+# - For production: enable auth_enabled and ensure all clients send X-Scope-OrgID header
+# - Deploy behind authenticated reverse proxy (nginx/OAuth2-proxy) with TLS
+# - Configure network restrictions to limit access
+# - For production: use external auth backend (JWT/basic auth) or reverse proxy
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+
+common:
+  path_prefix: /var/loki
+  storage:
+    # PRODUCTION: Use object storage (S3/GCS/Azure/MinIO) for multi-node HA
+    # DEVELOPMENT: Use filesystem for single-node setup
+    # NOTE: filesystem storage is INCOMPATIBLE with replication_factor > 1
+    # Example S3 configuration (uncomment and configure for production):
+    # s3:
+    #   s3: s3://region/bucket-name
+    #   endpoint: s3.amazonaws.com
+    #   region: us-east-1
+    #   access_key_id: ${AWS_ACCESS_KEY_ID}
+    #   secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+    #   s3forcepathstyle: false
+    # Example MinIO configuration:
+    # s3:
+    #   s3: s3://minio-endpoint/loki-data
+    #   endpoint: minio.example.com:9000
+    #   access_key_id: ${MINIO_ACCESS_KEY}
+    #   secret_access_key: ${MINIO_SECRET_KEY}
+    #   s3forcepathstyle: true
+    #   insecure: false
+    filesystem:
+      chunks_directory: /var/loki/chunks
+      rules_directory: /var/loki/rules
+  # PRODUCTION with object storage: Set replication_factor to 3 for high availability
+  # DEVELOPMENT or filesystem storage: Use replication_factor: 1
+  # IMPORTANT: replication_factor > 1 requires object storage (s3/gcs/azure/minio)
+  replication_factor: 1
+  ring:
+    # PRODUCTION: Set to routable/external IP or templated hostname (e.g., {{ .PodIP }})
+    # DEVELOPMENT: Use 127.0.0.1 for single-node setup
+    instance_addr: 127.0.0.1
+    kvstore:
+      # PRODUCTION with multi-node: Use persistent backend (consul, etcd, or memberlist)
+      # DEVELOPMENT or single-node: Use inmemory
+      store: inmemory
+      # Memberlist configuration for production (uncomment when using memberlist):
+      # store: memberlist
+      # memberlist:
+      #   join_members:
+      #     - loki-gossip-ring:7946
+
+schema_config:
+  configs:
+    - from: 2026-01-18
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+analytics:
+  reporting_enabled: false
+
+# Multi-tenancy configuration
+# When auth_enabled: true, all requests MUST include X-Scope-OrgID header (e.g., X-Scope-OrgID: tenant-1)
+# When auth_enabled: false (current development setting), Loki uses a default "fake" tenant
+# and the X-Scope-OrgID header is optional. Header enforcement only applies when auth is enabled.
+limits_config:
+  enforce_metric_name: false
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  ingestion_rate_mb: 10
+  ingestion_burst_size_mb: 20
+
+# Frontend authentication options:
+# Option 1: Deploy nginx/HAProxy reverse proxy with:
+#   - TLS termination
+#   - Basic auth or OAuth2 (via oauth2-proxy)
+#   - X-Scope-OrgID header injection based on authenticated user
+#   - Network restrictions (IP allowlist, VPN, etc.)
+#
+# Option 2: Use Loki's native auth:
+#   - Configure auth in server section
+#   - Set up JWT validation or basic auth
+#   - Implement tenant ID extraction from auth claims
+#
+# See: https://grafana.com/docs/loki/latest/operations/authentication/
+
+# Production Multi-Node Setup Checklist:
+# 1. Replace filesystem storage with object storage (S3/GCS/Azure/MinIO)
+# 2. Set replication_factor to 3
+# 3. Configure kvstore to use memberlist/consul/etcd
+# 4. Set instance_addr to routable IP (e.g., {{ .PodIP }})
+# 5. Update schema_config object_store to match storage backend (e.g., s3)
+# 6. Configure authentication and tenant isolation
+# 7. Set up TLS and network restrictions

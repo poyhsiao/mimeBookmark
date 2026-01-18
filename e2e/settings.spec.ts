@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { authenticateUser } from './fixtures/auth';
 
 test.describe('Settings Page', () => {
   test.beforeEach(async ({ page }) => {
+    await authenticateUser(page);
     await page.goto('/dashboard/settings');
   });
 
@@ -59,35 +61,114 @@ test.describe('Settings Page', () => {
 });
 
 test.describe('Settings - Functionality', () => {
+  test.beforeEach(async ({ page }) => {
+    await authenticateUser(page);
+  });
+
   test('should allow saving profile', async ({ page }) => {
     await page.goto('/dashboard/settings');
-    
-    // Fill display name
-    await page.fill('input[id*="displayName"]', 'Test User');
-    
-    // Save profile
-    await page.click('button:has-text("Save Profile")');
+
+    // Save original value
+    let originalName: string | undefined;
+    try {
+      originalName = await page.locator('input[id*="displayName"]').inputValue();
+    } catch (error) {
+      console.error('Failed to get original display name:', error);
+    }
+
+    try {
+      // Fill display name
+      await page.fill('input[id*="displayName"]', 'Test User');
+
+      // Save profile
+      await page.click('button:has-text("Save Profile")');
+
+      await expect(page.locator('input[id*="displayName"]')).toHaveValue('Test User');
+
+      await page.reload();
+      await expect(page.locator('input[id*="displayName"]')).toHaveValue('Test User');
+    } finally {
+      // Restore original value if it was successfully retrieved
+      if (typeof originalName !== 'undefined' && originalName !== null) {
+        try {
+          await page.fill('input[id*="displayName"]', originalName);
+          await page.click('button:has-text("Save Profile")');
+        } catch (error) {
+          console.error('Failed to restore original display name:', error);
+        }
+      }
+    }
   });
 
   test('should allow changing theme', async ({ page }) => {
     await page.goto('/dashboard/settings');
-    
-    // Click dark theme option
-    await page.click('button[value="dark"]');
+
+    // Save original theme value
+    const htmlElement = page.locator('html');
+    const originalTheme = await page.evaluate(() => {
+      const activeButton = document.querySelector('button[data-state="on"]');
+      return activeButton?.getAttribute('value') || 'light';
+    });
+
+    try {
+      // Click dark theme option
+      await page.click('button[value="dark"]');
+
+      await expect(htmlElement).toHaveClass(/dark/);
+    } finally {
+      // Restore exact original theme
+      try {
+        await page.click(`button[value="${originalTheme}"]`);
+      } catch (error) {
+        console.error('Failed to restore original theme:', error);
+      }
+    }
   });
 
   test('should allow changing language', async ({ page }) => {
     await page.goto('/dashboard/settings');
-    
-    // Select language
-    await page.selectOption('select[id*="language"]', 'zh');
+
+    const languageSelect = page.locator('select[id*="language"]');
+
+    // Save original value
+    const originalLanguage = await languageSelect.inputValue();
+
+    try {
+      // Select language
+      await page.selectOption('select[id*="language"]', 'zh');
+
+      await expect(languageSelect).toHaveValue('zh');
+    } finally {
+      // Restore original value
+      try {
+        await page.selectOption('select[id*="language"]', originalLanguage);
+      } catch (error) {
+        console.error('Failed to restore original language:', error);
+      }
+    }
   });
 
   test('should allow changing timezone', async ({ page }) => {
     await page.goto('/dashboard/settings');
-    
-    // Select timezone
-    await page.selectOption('select[id*="timezone"]', 'America/Los_Angeles');
+
+    const timezoneSelect = page.locator('select[id*="timezone"]');
+
+    // Save original value
+    const originalTimezone = await timezoneSelect.inputValue();
+
+    try {
+      // Select timezone
+      await page.selectOption('select[id*="timezone"]', 'America/Los_Angeles');
+
+      await expect(timezoneSelect).toHaveValue('America/Los_Angeles');
+    } finally {
+      // Restore original value
+      try {
+        await page.selectOption('select[id*="timezone"]', originalTimezone);
+      } catch (error) {
+        console.error('Failed to restore original timezone:', error);
+      }
+    }
   });
 
   test('should have save preferences button', async ({ page }) => {
@@ -109,9 +190,12 @@ test.describe('Settings - Functionality', () => {
 
 test.describe('Settings - Responsive', () => {
   test('should work on mobile viewport', async ({ page }) => {
+    // Authenticate before navigating to protected route
+    await authenticateUser(page);
+
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto('/dashboard/settings');
-    
+
     await expect(page.locator('h1')).toContainText('Settings');
     await expect(page.locator('text=Profile')).toBeVisible();
   });

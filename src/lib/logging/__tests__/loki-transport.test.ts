@@ -19,12 +19,17 @@ describe("LokiTransport", () => {
   it("aborts fetch if it exceeds timeout", async () => {
     vi.mocked(fetch).mockImplementation((_url, options: any) => {
       const signal = options?.signal;
-      return new Promise((resolve, reject) => {
+      return new Promise((_resolve, reject) => {
         if (signal?.aborted) {
-          reject(new Error("Aborted"));
+          // Reject with AbortError when already aborted
+          const abortError = new DOMException('The operation was aborted', 'AbortError');
+          reject(abortError);
+          return;
         }
         signal?.addEventListener("abort", () => {
-          reject(new Error("Aborted"));
+          // Reject with AbortError when abort event fires
+          const abortError = new DOMException('The operation was aborted', 'AbortError');
+          reject(abortError);
         });
       });
     });
@@ -38,6 +43,7 @@ describe("LokiTransport", () => {
     // Advance time and resolve pending promises
     await vi.advanceTimersByTimeAsync(10000);
 
-    await expect(promise).rejects.toThrow();
+    // Transport should swallow errors, so promise should resolve without error
+    await expect(promise).resolves.toBeUndefined();
   }, 10000);
 });

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
+  isDev?: boolean;
 }
 
 interface State {
@@ -28,6 +29,8 @@ export class ErrorBoundary extends Component<Props, State> {
     };
   }
 
+  private countdownInterval: NodeJS.Timeout | null = null;
+
   public static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error };
   }
@@ -41,6 +44,9 @@ export class ErrorBoundary extends Component<Props, State> {
   public componentWillUnmount(): void {
     if (this.retryTimeout) {
       clearTimeout(this.retryTimeout);
+    }
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
     }
   }
 
@@ -61,6 +67,21 @@ export class ErrorBoundary extends Component<Props, State> {
     const COOLDOWN_MS = 1000;
     const nextAllowedRetry = Date.now() + COOLDOWN_MS;
 
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+    }
+
+    this.countdownInterval = setInterval(() => {
+      if (Date.now() >= nextAllowedRetry) {
+        if (this.countdownInterval) {
+          clearInterval(this.countdownInterval);
+          this.countdownInterval = null;
+        }
+        return;
+      }
+      this.forceUpdate();
+    }, 1000);
+
     this.setState((prevState) => ({
       hasError: false,
       error: null,
@@ -73,7 +94,10 @@ export class ErrorBoundary extends Component<Props, State> {
     }
 
     this.retryTimeout = setTimeout(() => {
-      this.forceUpdate();
+      if (this.countdownInterval) {
+        clearInterval(this.countdownInterval);
+        this.countdownInterval = null;
+      }
     }, COOLDOWN_MS);
   };
 
@@ -93,7 +117,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <p className='text-gray-600'>
               An unexpected error occurred. Please try again.
             </p>
-            {this.state.error && process.env.NODE_ENV !== "production" && (
+            {this.state.error && (this.props.isDev ?? process.env.NODE_ENV === "development") && (
               <details className='text-left text-sm text-gray-500 bg-gray-50 p-4 rounded'>
                 <summary>Error details</summary>
                 <pre className='mt-2 whitespace-pre-wrap'>
@@ -113,9 +137,14 @@ export class ErrorBoundary extends Component<Props, State> {
               >
                 {this.state.retryCount >= 3
                   ? "Too Many Retries"
-                  : Date.now() < this.state.nextAllowedRetry
-                    ? `Wait ${Math.ceil((this.state.nextAllowedRetry - Date.now()) / 1000)}s`
-                    : "Try Again (No Reload)"}
+                  : (() => {
+                      const remainingMs = this.state.nextAllowedRetry - Date.now();
+                      if (remainingMs <= 0) {
+                        return "Try Again (No Reload)";
+                      }
+                      const seconds = Math.max(1, Math.ceil(remainingMs / 1000));
+                      return `Wait ${seconds}s`;
+                    })()}
               </Button>
             </div>
           </div>

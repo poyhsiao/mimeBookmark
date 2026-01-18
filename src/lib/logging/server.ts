@@ -7,7 +7,7 @@ export interface LogErrorOptions {
   level?: "error" | "warn" | "info";
 }
 
-export function logError(error: unknown, options: LogErrorOptions = {}): void {
+export async function logError(error: unknown, options: LogErrorOptions = {}): Promise<void> {
   const logger = getServerLogger();
 
   let errorMessage: string;
@@ -21,41 +21,42 @@ export function logError(error: unknown, options: LogErrorOptions = {}): void {
     errorStack = undefined;
   }
 
+  const level = options.level || "error";
+
   const logContext: Record<string, unknown> = {
     ...options.context,
     errorType: error instanceof Error ? error.constructor.name : typeof error,
   };
 
-  if (errorStack) {
+  // Only attach errorStack to logContext when NOT passing the Error object to logger.error
+  // to avoid duplicating the stack trace (logger.error adds its own stack when given an Error)
+  if (errorStack && level !== "error") {
     logContext.errorStack = errorStack;
   }
 
-  // Use the specified level or default to 'error'
-  const level = options.level || "error";
-
   switch (level) {
     case "error":
-      logger.error(
+      await logger.error(
         errorMessage,
         error instanceof Error ? error : undefined,
         logContext,
       );
       break;
     case "warn":
-      logger.warn(errorMessage, logContext);
+      await logger.warn(errorMessage, logContext);
       break;
     case "info":
-      logger.info(errorMessage, logContext);
+      await logger.info(errorMessage, logContext);
       break;
   }
 }
 
-export function logApiError(
+export async function logApiError(
   error: unknown,
   requestPath: string,
   statusCode?: number,
-): void {
-  logError(error, {
+): Promise<void> {
+  await logError(error, {
     context: {
       requestPath,
       statusCode,
@@ -64,12 +65,12 @@ export function logApiError(
   });
 }
 
-export function logDatabaseError(
+export async function logDatabaseError(
   error: unknown,
   operation: string,
   tableName?: string,
-): void {
-  logError(error, {
+): Promise<void> {
+  await logError(error, {
     context: {
       operation,
       tableName,
@@ -78,11 +79,11 @@ export function logDatabaseError(
   });
 }
 
-export function logAuthenticationError(
+export async function logAuthenticationError(
   error: unknown,
   userId?: string,
   method?: string,
-): void {
+): Promise<void> {
   const displayUserId =
     userId && process.env.LOG_RAW_USER_IDS === "true"
       ? userId
@@ -90,7 +91,7 @@ export function logAuthenticationError(
         ? anonymize(userId)
         : undefined;
 
-  logError(error, {
+  await logError(error, {
     context: {
       userId: displayUserId,
       method,
@@ -106,12 +107,12 @@ function anonymize(input: string): string {
   return createHash("sha256").update(input).digest("hex").slice(0, 12);
 }
 
-export function logSecurityEvent(
+export async function logSecurityEvent(
   message: string,
   context?: Record<string, unknown>,
-): void {
+): Promise<void> {
   const logger = getServerLogger();
-  logger.warn(message, {
+  await logger.warn(message, {
     ...context,
     securityEvent: true,
   });

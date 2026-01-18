@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { authenticateUser } from './fixtures/auth';
 
 test.describe('Bookmarks Page', () => {
   test.beforeEach(async ({ page }) => {
+    await authenticateUser(page);
     await page.goto('/dashboard/bookmarks');
   });
 
@@ -21,6 +23,16 @@ test.describe('Bookmarks Page', () => {
   });
 
   test('should show empty state when no bookmarks exist', async ({ page }) => {
+    // Mock the bookmarks API to return empty state for deterministic test
+    await page.route('**/api/bookmarks**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ bookmarks: [], total: 0 }),
+      });
+    });
+
+    await page.goto('/dashboard/bookmarks');
     const emptyState = page.locator('text=No bookmarks yet').first();
     await expect(emptyState).toBeVisible();
   });
@@ -37,10 +49,14 @@ test.describe('Bookmarks Page', () => {
 });
 
 test.describe('Bookmarks - Functionality', () => {
+  test.beforeEach(async ({ page }) => {
+    await authenticateUser(page);
+  });
+
   test('should open add bookmark modal', async ({ page }) => {
     await page.goto('/dashboard/bookmarks');
     await page.click('button:has-text("Add Bookmark")');
-    
+
     const modal = page.locator('[role="dialog"]').first();
     await expect(modal).toBeVisible();
   });
@@ -48,7 +64,7 @@ test.describe('Bookmarks - Functionality', () => {
   test('should have URL input field in add modal', async ({ page }) => {
     await page.goto('/dashboard/bookmarks');
     await page.click('button:has-text("Add Bookmark")');
-    
+
     const urlInput = page.locator('input[type="url"], input[id*="url"]');
     await expect(urlInput).toBeVisible();
   });
@@ -56,7 +72,7 @@ test.describe('Bookmarks - Functionality', () => {
   test('should have title input field in add modal', async ({ page }) => {
     await page.goto('/dashboard/bookmarks');
     await page.click('button:has-text("Add Bookmark")');
-    
+
     const titleInput = page.locator('input[id*="title"], input[name*="title"]');
     await expect(titleInput).toBeVisible();
   });
@@ -64,10 +80,10 @@ test.describe('Bookmarks - Functionality', () => {
   test('should close modal when cancel button is clicked', async ({ page }) => {
     await page.goto('/dashboard/bookmarks');
     await page.click('button:has-text("Add Bookmark")');
-    
+
     const modal = page.locator('[role="dialog"]').first();
     await expect(modal).toBeVisible();
-    
+
     await page.click('button:has-text("Cancel")');
     await expect(modal).not.toBeVisible();
   });

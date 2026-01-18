@@ -56,7 +56,7 @@ npx playwright test e2e/home.spec.ts --project=chromium --debug
 ### Environment Variables
 ```bash
 # Optional: Override base URL
-BASE_URL=http://localhost:3002
+BASE_URL=http://localhost:3000
 
 # Optional: CI environment
 CI=true
@@ -139,10 +139,11 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
+          cache: 'npm'
       - run: npm ci
       - run: npx playwright install --with-deps
       - run: npx playwright test --project=chromium

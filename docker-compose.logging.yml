@@ -5,7 +5,7 @@ services:
     image: grafana/loki:3.4.6
     container_name: mimebookmark-loki
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
     volumes:
       - ./docker/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
       - loki-data:/var/loki
@@ -14,6 +14,10 @@ services:
       - mimebookmark-network
     restart: unless-stopped
 
+  # TODO: Migrate from Promtail to Grafana Alloy before EOL (March 2, 2026)
+  # ISSUE: https://github.com/kimhsiao/mimeBookmark/issues/7
+  # Migration command: alloy convert --source-format=promtail --output=<OUTPUT_CONFIG_PATH> <INPUT_CONFIG_PATH>
+  # Reference: https://grafana.com/docs/alloy/latest/reference/cli/convert/
   promtail:
     image: grafana/promtail:3.4.6
     container_name: mimebookmark-promtail
@@ -33,7 +37,7 @@ services:
     image: grafana/grafana:11.5.0
     container_name: mimebookmark-grafana
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     # WARNING: In production, you MUST set secure credentials via:
     # - Docker secrets (recommended): Create secret files and reference them below
     # - Environment variables: Set GF_SECURITY_ADMIN_USER and GF_SECURITY_ADMIN_PASSWORD

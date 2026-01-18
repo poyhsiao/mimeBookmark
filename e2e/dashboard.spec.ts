@@ -1,34 +1,60 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Dashboard Page', () => {
-  test.beforeEach(async ({ page }) => {
-    // Dashboard requires authentication, so we need to mock or handle auth
-    // For e2e tests, we'll test the unauthenticated redirect behavior
-    await page.goto('/dashboard');
-  });
-
   test('should redirect to login when not authenticated', async ({ page }) => {
-    // The dashboard has a client-side redirect
-    // We test that it eventually redirects or shows login
-    await page.waitForURL(/\/login$/, { timeout: 5000 }).catch(() => {
-      // If redirect doesn't happen, check for sidebar which indicates auth
-      const sidebar = page.locator('aside').first();
-      expect(sidebar).toBeVisible();
-    });
+    await page.goto('/dashboard');
+    await expect(page).toHaveURL(/\/login$/, { timeout: 5000 });
   });
 
   test('should show loading state while checking auth', async ({ page }) => {
-    await page.goto('/dashboard');
-    // Check for loading spinner
-    const loadingSpinner = page.locator('.animate-spin').first();
-    await expect(loadingSpinner).toBeVisible();
+    let continueRoute: (() => Promise<void>) | null = null;
+    let routeReadyResolve: (() => void) | null = null;
+    const routeReadyPromise = new Promise<void>((resolve) => {
+      routeReadyResolve = resolve;
+    });
+
+    // Set up route interception BEFORE navigation to ensure it's active
+    await page.route('**/api/me/**', async route => {
+      // Hold the route and store the continuation function
+      continueRoute = async () => {
+        await route.continue();
+      };
+      // Signal that the route handler has been set up
+      if (routeReadyResolve) {
+        routeReadyResolve();
+      }
+    });
+
+    // Start navigation (don't await yet)
+    const navigationPromise = page.goto('/dashboard');
+
+    // Wait for the request to be intercepted
+    await page.waitForRequest('**/api/me/**', { timeout: 5000 });
+
+    // Wait for the route handler to set up the continuation function
+    await routeReadyPromise;
+
+    // Assert loading spinner is visible while request is held
+    const loadingSpinner = page.locator('[aria-busy="true"], [role="status"], [data-testid="loading"]').first();
+    await expect(loadingSpinner).toBeVisible({ timeout: 2000 });
+
+    // Release the intercepted route (guaranteed to be non-null)
+    if (continueRoute) {
+      await continueRoute();
+    }
+
+    // Wait for navigation to complete
+    await navigationPromise;
   });
 });
 
-test.describe('Dashboard Layout', () => {
+test.describe.skip('Dashboard Layout', () => {
   test.beforeEach(async ({ page }) => {
-    // Navigate to dashboard with mocked auth (would need actual auth setup)
-    // For now, we test the layout structure
+    // TODO: Add authenticated storageState or setup authentication
+    // Option A: test.use({ storageState: 'auth.json' }) at top of describe
+    // Option B: Perform authenticated setup in test.beforeEach (addCookies, login helper)
+    // Currently skipped because tests navigate to /dashboard unauthenticated and hit login redirect
+    // For now, we test layout structure
   });
 
   test('should have sidebar navigation', async ({ page }) => {

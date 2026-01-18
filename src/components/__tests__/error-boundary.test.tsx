@@ -17,17 +17,18 @@ const ThrowError = ({
 };
 
 describe("ErrorBoundary", () => {
-  // Prevent console.error from cluttering the test output
-  vi.spyOn(console, "error").mockImplementation(() => {});
-
   beforeEach(() => {
+    // Clear all mocks first
     vi.clearAllMocks();
+    // Then create new spy (won't be cleared)
+    vi.spyOn(console, "error").mockImplementation(() => {});
     vi.useFakeTimers();
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it("renders children when there is no error", () => {
@@ -40,9 +41,8 @@ describe("ErrorBoundary", () => {
   });
 
   it("renders error message in development", () => {
-    vi.stubEnv("NODE_ENV", "development");
     render(
-      <ErrorBoundary>
+      <ErrorBoundary isDev={true}>
         <ThrowError message='Sensitive dev error' />
       </ErrorBoundary>,
     );
@@ -50,9 +50,8 @@ describe("ErrorBoundary", () => {
   });
 
   it("hides sensitive error message in production", () => {
-    vi.stubEnv("NODE_ENV", "production");
     render(
-      <ErrorBoundary>
+      <ErrorBoundary isDev={false}>
         <ThrowError message='Sensitive production error' />
       </ErrorBoundary>,
     );

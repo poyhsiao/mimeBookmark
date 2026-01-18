@@ -1,4 +1,4 @@
-import { describe, expect, test, beforeEach, vi } from 'vitest';
+import { describe, expect, test, beforeEach, vi, beforeAll, afterAll } from 'vitest';
 import {
   SUBSCRIPTION_PLANS,
   getPlan,
@@ -9,7 +9,17 @@ import {
   formatLimit,
 } from '../plans';
 
+beforeAll(() => {
+  vi.stubEnv('STRIPE_PRICE_PRO', 'price_pro_test');
+  vi.stubEnv('STRIPE_PRICE_TEAM', 'price_team_test');
+});
+
+afterAll(() => {
+  vi.unstubAllEnvs();
+});
+
 describe('SUBSCRIPTION_PLANS', () => {
+
   test('contains free, pro, and team plans', () => {
     expect(SUBSCRIPTION_PLANS.free).toBeDefined();
     expect(SUBSCRIPTION_PLANS.pro).toBeDefined();
@@ -95,7 +105,7 @@ describe('hasUnlimited', () => {
     expect(hasUnlimited(-1)).toBe(true);
   });
 
-  test('returns false for positive numbers', () => {
+  test('returns false for non-negative numbers', () => {
     expect(hasUnlimited(100)).toBe(false);
     expect(hasUnlimited(0)).toBe(false);
   });

@@ -1,7 +1,7 @@
 import type { SubscriptionPlan, PlanType } from '@/types/subscription';
 
 // Stripe price ID validation pattern
-const STRIPE_PRICE_ID_PATTERN = /^price_[A-Za-z0-9]+$/;
+const STRIPE_PRICE_ID_PATTERN = /^price_/;
 
 // Validate Stripe price ID format
 function validatePriceId(priceId: string | undefined, planName: string): string {
@@ -15,7 +15,7 @@ function validatePriceId(priceId: string | undefined, planName: string): string 
   if (!STRIPE_PRICE_ID_PATTERN.test(priceId)) {
     throw new Error(
       `Invalid Stripe price ID format for ${planName}: "${priceId}". ` +
-      `Price IDs must start with "price_" followed by alphanumeric characters (e.g., "price_1234567890abcdef").`
+      `Price IDs must start with "price_" (e.g., "price_1234567890abcdef").`
     );
   }
 
@@ -101,10 +101,22 @@ export function getPlan(planId: PlanType): SubscriptionPlan {
 }
 
 export function getPlanByPriceId(priceId: string): SubscriptionPlan | null {
-  const plan = Object.values(SUBSCRIPTION_PLANS).find(
-    (plan) => plan.priceId === priceId
-  );
-  return plan || null;
+  for (const plan of Object.values(SUBSCRIPTION_PLANS)) {
+    try {
+      // Accessing plan.priceId might trigger lazy getters that throw if env variables are missing
+      if (plan.priceId === priceId) {
+        return plan;
+      }
+    } catch (error) {
+      // Log configuration errors for troubleshooting
+      const planName = plan.name || plan.id || 'unknown';
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.warn(`[getPlanByPriceId] Skipping plan "${planName}" due to configuration error: ${errorMessage}`);
+      // Skip plans where the priceId getter fails (e.g. missing environment variables)
+      continue;
+    }
+  }
+  return null;
 }
 
 export function isProOrHigher(currentPlan: PlanType): boolean {
@@ -121,5 +133,5 @@ export function hasUnlimited(limit: number): boolean {
 
 export function formatLimit(limit: number): string {
   if (limit === -1) return 'Unlimited';
-  return limit.toLocaleString();
+  return limit.toLocaleString('en-US');
 }

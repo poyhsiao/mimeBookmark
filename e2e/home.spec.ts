@@ -18,7 +18,7 @@ test.describe('Home Page', () => {
   test('should navigate to login page when clicking Sign In', async ({ page }) => {
     await page.click('text=Sign In');
     await expect(page).toHaveURL(/\/login$/);
-    await expect(page.locator('text=Your personal bookmark manager')).toBeVisible();
+    await expect(page.locator('input[type="email"]')).toBeVisible();
   });
 
   test('should navigate to register page when clicking Get Started', async ({ page }) => {
@@ -46,8 +46,16 @@ test.describe('Home Page - Accessibility', () => {
     await page.goto('/');
     const signInLink = page.locator('text=Sign In').first();
     await expect(signInLink).toBeVisible();
-    
+
+    // Test keyboard focus
+    await signInLink.focus();
+    await expect(signInLink).toBeFocused();
+
     const getStartedLink = page.locator('text=Get Started').first();
     await expect(getStartedLink).toBeVisible();
+
+    // Test keyboard focus
+    await getStartedLink.focus();
+    await expect(getStartedLink).toBeFocused();
   });
 });

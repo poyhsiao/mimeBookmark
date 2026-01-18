@@ -34,8 +34,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { returnUrl } = body as { returnUrl?: string };
+    let body: { returnUrl?: string };
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid JSON in request body" },
+        { status: 400 }
+      );
+    }
+
+    const { returnUrl } = body;
 
     // Validate returnUrl to prevent open redirect attacks
     const appUrl = getAppUrl();

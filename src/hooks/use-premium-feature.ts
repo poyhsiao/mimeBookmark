@@ -9,22 +9,15 @@ const TIER_ORDER: Record<PlanType, number> = {
   team: 2,
 };
 
-// Get the app URL with proper fallback to ensure absolute URL
-// Returns undefined on server if NEXT_PUBLIC_APP_URL is missing to avoid hydration mismatches
-function getAppUrl(): string | undefined {
+// Get the app URL with proper fallback to ensure consistent SSR/client behavior
+// Returns a deterministic value regardless of environment
+function getAppUrl(): string {
   // Prefer environment variable
   if (process.env.NEXT_PUBLIC_APP_URL) {
     return process.env.NEXT_PUBLIC_APP_URL;
   }
-  // On server, return undefined if env is missing
-  if (typeof window === "undefined") {
-    return undefined;
-  }
-  // On client, warn and fallback to origin
-  console.warn(
-    "NEXT_PUBLIC_APP_URL is missing, falling back to window.location.origin",
-  );
-  return window.location.origin;
+  // Fallback to empty string - upgradeUrl will use relative path when appUrl is empty
+  return '';
 }
 
 interface UsePremiumFeatureOptions {
@@ -39,6 +32,9 @@ export function usePremiumFeature({ requiredTier }: UsePremiumFeatureOptions): {
 } {
   const { subscriptionTier, subscription, isLoading } = useSubscription();
 
+  // Memoize appUrl to ensure stable value across renders
+  const appUrl = useMemo(() => getAppUrl(), []);
+
   return useMemo(() => {
     // Use subscriptionTier from profile as primary source, fallback to subscription?.tier
     const userTier: PlanType = subscriptionTier || subscription?.tier || "free";
@@ -47,7 +43,7 @@ export function usePremiumFeature({ requiredTier }: UsePremiumFeatureOptions): {
     const requiredTierLevel = TIER_ORDER[requiredTier];
     const isAllowed = userTierLevel >= requiredTierLevel;
 
-    const appUrl = getAppUrl();
+    // Use appUrl directly - when empty, upgradeUrl will be a relative path
     const upgradeUrl = appUrl
       ? `${appUrl}/settings/billing?upgrade=${requiredTier}`
       : `/settings/billing?upgrade=${requiredTier}`;
@@ -58,7 +54,7 @@ export function usePremiumFeature({ requiredTier }: UsePremiumFeatureOptions): {
       isLoading,
       upgradeUrl,
     };
-  }, [subscriptionTier, subscription, requiredTier, isLoading]);
+  }, [subscriptionTier, subscription, requiredTier, isLoading, appUrl]);
 }
 
 // Hook specifically for checking if user has at least Pro tier

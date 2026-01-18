@@ -7,7 +7,8 @@ export type SubscriptionStatus =
   | 'trialing'
   | 'incomplete'
   | 'incomplete_expired'
-  | 'unpaid';
+  | 'unpaid'
+  | 'paused';
 
 export interface SubscriptionPlan {
   id: PlanType;

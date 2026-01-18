@@ -3,7 +3,6 @@ import { LogEntry, LogTransport } from "./log-transport";
 export interface LokiBatchEntry {
   stream: Record<string, string>;
   values: Array<[string, string]>; // [timestampNsString, line]
-  timestamp: number;
 }
 
 export interface LokiPushRequest {
@@ -56,9 +55,6 @@ export class LokiTransport implements LogTransport {
         streamEntry = {
           stream: { ...labels },
           values: [],
-          timestamp: entry.timestamp
-            ? new Date(entry.timestamp).getTime()
-            : Date.now(),
         };
         streams.push(streamEntry);
       }
@@ -95,10 +91,8 @@ export class LokiTransport implements LogTransport {
       if (error.name === "AbortError") {
         console.error("Loki push timed out after 5s");
       } else {
-        // Log to console as fallback
         console.error("Failed to send logs to Loki:", error);
       }
-      throw error;
     } finally {
       clearTimeout(timeoutId);
     }

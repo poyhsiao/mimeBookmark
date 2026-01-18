@@ -136,7 +136,7 @@ export class Logger {
   public createChild(context: Record<string, unknown>): Logger {
     return new Logger({
       service: this.service,
-      transports: this.transports,
+      transports: [...this.transports],
       environment: this.environment as any,
       _internalContext: { ...this.context, ...context },
     });

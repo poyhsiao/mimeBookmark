@@ -9,13 +9,12 @@ describe("Server Logging", () => {
 
   it("passes the actual error object to the logger", async () => {
     const logger = getServerLogger();
-    // Use a mock to verify behavior
     const errorSpy = vi
       .spyOn(logger, "error")
       .mockImplementation(async () => {});
 
     const testError = new Error("Original error");
-    logError(testError, { message: "Wrapped message" });
+    await logError(testError, { message: "Wrapped message" });
 
     expect(errorSpy).toHaveBeenCalledWith(
       "Wrapped message",
