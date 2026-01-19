@@ -68,36 +68,54 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 创建关联记录
-    const records = validTagIds.map((tag_id) => ({
-      bookmark_id,
-      tag_id,
-      created_at: new Date().toISOString(),
-    }));
-
-    const { error } = await supabase
+    // 创建关联记录 - 先查询已存在的关联，然后只对不存在的记录进行 upsert
+    const { data: existingLinks, error: existingLinksError } = await supabase
       .from("bookmark_tags")
-      .upsert(records, { onConflict: "bookmark_id, tag_id" });
+      .select("tag_id")
+      .eq("bookmark_id", bookmark_id)
+      .in("tag_id", validTagIds);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (existingLinksError) {
+      return NextResponse.json(
+        { error: existingLinksError.message },
+        { status: 500 },
+      );
     }
 
-    // 更新标签的使用计数
-    const { error: rpcError } = await supabase.rpc(
-      "increment_tag_usage_count",
-      {
-        tag_ids: validTagIds,
-      },
-    );
+    const existingTagIds = new Set(existingLinks?.map((l) => l.tag_id) || []);
+    const newTagIds = validTagIds.filter((id) => !existingTagIds.has(id));
 
-    if (rpcError) {
-      console.error("Failed to update tag usage count:", rpcError);
+    if (newTagIds.length > 0) {
+      const records = newTagIds.map((tag_id) => ({
+        bookmark_id,
+        tag_id,
+        created_at: new Date().toISOString(),
+      }));
+
+      const { error } = await supabase
+        .from("bookmark_tags")
+        .upsert(records, { onConflict: "bookmark_id, tag_id" });
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      // 只有新插入的标签才更新使用计数
+      const { error: rpcError } = await supabase.rpc(
+        "increment_tag_usage_count",
+        {
+          tag_ids: newTagIds,
+        },
+      );
+
+      if (rpcError) {
+        console.error("Failed to update tag usage count:", rpcError);
+      }
     }
 
     return NextResponse.json({
       success: true,
-      added_tags: validTagIds,
+      added_tags: newTagIds,
       invalid_tags: invalidTagIds,
     });
   } catch {
@@ -173,14 +191,32 @@ export async function DELETE(request: NextRequest) {
     }
 
     // 删除关联记录
-    const { error } = await supabase
+    const { data: deletedRecords, error } = await supabase
       .from("bookmark_tags")
       .delete()
       .eq("bookmark_id", bookmark_id)
-      .in("tag_id", validTagIds);
+      .in("tag_id", validTagIds)
+      .select("tag_id");
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // 从返回的记录中提取实际删除的 tag_ids
+    const deletedTagIds = deletedRecords?.map((r) => r.tag_id) || [];
+
+    // 只有实际删除的标签才更新使用计数
+    if (deletedTagIds.length > 0) {
+      const { error: rpcError } = await supabase.rpc(
+        "decrement_tag_usage_count",
+        {
+          tag_ids: deletedTagIds,
+        },
+      );
+
+      if (rpcError) {
+        console.error("Failed to update tag usage count:", rpcError);
+      }
     }
 
     // 更新标签的使用计数

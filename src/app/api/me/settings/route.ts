@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
       .eq("id", user.id)
       .single();
 
+    // If profile doesn't exist, create a default one
     if (error || !profile) {
       // Check if the error is due to no rows found
       const errorMessage = error?.message || "";
@@ -27,10 +28,41 @@ export async function GET(request: NextRequest) {
         errorDetails.includes("0 rows") ||
         !profile
       ) {
-        return NextResponse.json(
-          { error: "Profile not found" },
-          { status: 404 },
-        );
+        // Use insert to create the profile without overwriting existing data
+        // This prevents clobbering a user's customized display_name if profile exists
+        const localName = (user.email?.split("@")[0] || "").trim();
+        const { data: newProfile, error: profileError } = await supabase
+          .from("profiles")
+          .insert({
+            id: user.id,
+            email: user.email || "",
+            display_name: localName || "User",
+          })
+          .select()
+          .maybeSingle();
+
+        if (profileError || !newProfile) {
+          console.error("Failed to auto-create or get profile:", profileError);
+          return NextResponse.json(
+            { error: "Profile not found and could not be created" },
+            { status: 500 },
+          );
+        }
+
+        // Return the newly created profile
+        const settings = {
+          displayName: newProfile.display_name,
+          avatarUrl: newProfile.avatar_url,
+          timezone: newProfile.timezone,
+          subscriptionTier: newProfile.subscription_tier,
+          subscriptionStatus: newProfile.subscription_status,
+          bookmarksLimit: newProfile.bookmarks_limit,
+          bookmarksCount: newProfile.bookmarks_count,
+          collectionsLimit: newProfile.collections_limit,
+          tagsLimit: newProfile.tags_limit,
+          preferences: newProfile.preferences,
+        };
+        return NextResponse.json({ settings });
       }
       return NextResponse.json(
         { error: errorMessage || "Unknown error" },
