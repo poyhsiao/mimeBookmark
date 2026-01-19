@@ -85,11 +85,7 @@
 - [x] 书签列表页面 - components/bookmarks/bookmarks-section.tsx
 - [x] 书签详情页面 - 集成在卡片中
 - [x] 书签编辑功能 - components/bookmarks/edit-bookmark-modal.tsx
-- [x] 软删除功能 - 已实现 (API: /api/bookmarks/[id]/restore)
-
-**验收标准**:
-- 创建/读取/更新/删除功能（不含软删除/恢复）基本完成 - ✅
-- 软删除和恢复功能正常 - 未实现（需要 restore 功能）
+- [x] 软删除和恢复功能正常 - ✅ 已实现 (API: /api/bookmarks/[id]/restore)
 
 ### 3.2 书签搜索
 
@@ -289,7 +285,7 @@
 
 - [x] 定价页面 - ✅ 已创建 src/app/(marketing)/pricing/page.tsx
 - [x] 支付流程 - app/api/stripe/checkout/route.ts
-- [x] 升级成功页面 - 已更新 app/(dashboard)/upgrade-success/page.tsx
+- [x] 升级成功页面 - 已更新 src/app/(dashboard)/upgrade-success/page.tsx
 - [x] 订阅管理页面 - app/api/stripe/portal/route.ts
 
 ---

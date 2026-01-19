@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { CheckCircle, ArrowRight, Loader2, Crown, Sparkles, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { SUBSCRIPTION_PLANS, type PlanType } from '@/lib/subscription/plans';
 
 interface PricingPlan {
   id: string;
@@ -15,51 +16,24 @@ interface PricingPlan {
   features: string[];
 }
 
-const PRICING_PLANS: PricingPlan[] = [
-  {
-    id: 'free',
-    name: 'Free',
-    price: '$0',
-    interval: 'forever',
-    features: [
-      'Up to 100 bookmarks',
-      'Up to 5 collections',
-      'Basic search',
-      'Manual organization',
-    ]
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    price: '$4.99',
-    interval: 'month',
-    features: [
-      'Unlimited bookmarks',
-      'Unlimited collections',
-      'Advanced search with filters',
-      'Import and export in any format',
-      'Priority support',
-    ]
-  },
-  {
-    id: 'team',
-    name: 'Team',
-    price: '$9.99',
-    interval: 'month',
-    features: [
-      'Unlimited bookmarks',
-      'Unlimited collections',
-      'Advanced search with filters',
-      'Import and export in any format',
-      'Priority support',
-      'Team collaboration features',
-      'Shared collections',
-      'Role-based access control',
-    ]
-  },
-];
+function formatPrice(price: number, interval: string): string {
+  if (price === 0) return '$0';
+  return `$${price}`;
+}
 
-export default function UpgradeSuccessPage() {
+function formatFeatures(features: string[]): string[] {
+  return features.map(f => f.replace(/[\[\]"]/g, ''));
+}
+
+const PRICING_PLANS: PricingPlan[] = Object.entries(SUBSCRIPTION_PLANS).map(([key, plan]) => ({
+  id: key,
+  name: plan.name,
+  price: formatPrice(plan.price, key === 'free' ? 'forever' : 'month'),
+  interval: key === 'free' ? 'forever' : 'month',
+  features: formatFeatures(plan.features),
+}));
+
+function UpgradeSuccessContent() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
@@ -166,7 +140,7 @@ export default function UpgradeSuccessPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Price</span>
                   <span className="font-semibold">
-                    {plan.price}/{plan.interval}
+                    {plan.interval === 'forever' ? plan.price : `${plan.price}/${plan.interval}`}
                   </span>
                 </div>
               </div>
@@ -214,5 +188,39 @@ export default function UpgradeSuccessPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function LoadingSkeleton() {
+  return (
+    <div className="container mx-auto py-16 px-4">
+      <Card className="max-w-md mx-auto">
+        <CardHeader className="text-center space-y-4">
+          <div className="flex justify-center">
+            <Loader2 className="w-16 h-16 animate-spin text-primary" />
+          </div>
+          <CardTitle className="text-2xl">Processing Your Subscription</CardTitle>
+          <CardDescription>Please wait while we confirm your subscription...</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="bg-muted rounded-lg p-4 animate-pulse h-20"></div>
+            <div className="bg-muted rounded-lg p-4 animate-pulse h-32"></div>
+            <div className="space-y-3">
+              <div className="h-10 bg-muted rounded animate-pulse"></div>
+              <div className="h-10 bg-muted rounded animate-pulse"></div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+export default function UpgradeSuccessPage() {
+  return (
+    <Suspense fallback={<LoadingSkeleton />}>
+      <UpgradeSuccessContent />
+    </Suspense>
   );
 }

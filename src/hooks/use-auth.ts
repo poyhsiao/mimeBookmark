@@ -7,7 +7,7 @@ export function useAuth() {
   const { user, loading } = useUser();
 
   return {
-    user: user as User | null,
+    user,
     isLoading: loading,
   };
 }

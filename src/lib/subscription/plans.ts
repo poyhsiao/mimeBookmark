@@ -1,5 +1,7 @@
 import type { SubscriptionPlan, PlanType } from '@/types/subscription';
 
+export type { PlanType };
+
 export const SUBSCRIPTION_PLANS: Record<PlanType, SubscriptionPlan> = {
   free: {
     id: 'free',
