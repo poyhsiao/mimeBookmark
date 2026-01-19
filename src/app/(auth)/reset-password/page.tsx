@@ -1,5 +1,6 @@
 import { ResetPasswordForm } from '@/components/auth/reset-password-form';
 import { BookMarked } from 'lucide-react';
+import { Suspense } from 'react';
 
 export default function ResetPasswordPage() {
   return (
@@ -14,7 +15,9 @@ export default function ResetPasswordPage() {
         </p>
       </div>
 
-      <ResetPasswordForm />
+      <Suspense fallback={<div className="w-full max-w-md animate-pulse bg-muted h-64 rounded-lg" />}>
+        <ResetPasswordForm />
+      </Suspense>
     </div>
   );
 }
