@@ -140,6 +140,12 @@ export async function POST(request: NextRequest) {
       fileName.endsWith('.csv')
     ) {
       const parsed = parseCsv(content);
+      if (!parsed.success) {
+        return NextResponse.json(
+          { error: `Failed to parse CSV: ${parsed.error || 'Unknown error'}` },
+          { status: 400 }
+        );
+      }
       bookmarks = parsed.bookmarks;
       tags = parsed.tags;
     } else {
@@ -538,6 +544,8 @@ function parseNetscapeHtml(html: string): ParsedNetscapeResult {
 
 // CSV parsing function
 interface CsvParsedResult {
+  success: boolean;
+  error?: string;
   bookmarks: ImportedBookmark[];
   tags: ImportedTag[];
 }
@@ -545,13 +553,13 @@ interface CsvParsedResult {
 function parseCsv(content: string): CsvParsedResult {
   const bookmarks: ImportedBookmark[] = [];
   const uniqueTagNames = new Set<string>();
-  
+
   try {
     // Split content into lines
     const lines = content.trim().split(/\r?\n/);
-    
+
     if (lines.length < 2) {
-      return { bookmarks, tags: [] };
+      return { success: true, bookmarks, tags: [] };
     }
     
     // Parse header line
@@ -653,12 +661,18 @@ function parseCsv(content: string): CsvParsedResult {
     }
   } catch (e) {
     console.error('Error parsing CSV:', e);
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : 'Unknown CSV parse error',
+      bookmarks: [],
+      tags: [],
+    };
   }
-  
+
   // Convert unique tag names to tags array
   const tags = Array.from(uniqueTagNames).map(name => ({ name }));
-  
-  return { bookmarks, tags };
+
+  return { success: true, bookmarks, tags };
 }
 
 // Helper to parse a CSV line (handles quoted values)

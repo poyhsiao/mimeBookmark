@@ -24,7 +24,7 @@ async function getDeletedCollection(supabase: Awaited<ReturnType<typeof createCl
 // POST /api/collections/[id]/restore - Restore a soft-deleted collection
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -33,7 +33,7 @@ export async function POST(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { id } = await params;
+  const { id } = params;
 
   try {
     const collection = await getDeletedCollection(supabase, id, user.id);

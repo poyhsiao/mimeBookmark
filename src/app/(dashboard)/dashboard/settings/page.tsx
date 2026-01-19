@@ -321,10 +321,7 @@ export default function SettingsPage() {
     setImportProgress(0);
     setImportStatus('Preparing import...');
 
-    try {
-      const fileSize = importFile.size;
-      const estimatedTime = Math.max(2, Math.ceil(fileSize / 50000));
-
+     try {
       setImportStatus('Reading file...');
 
       const formData = new FormData();

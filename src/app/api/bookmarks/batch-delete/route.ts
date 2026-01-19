@@ -40,7 +40,8 @@ export async function POST(request: NextRequest) {
     const { error: updateError } = await supabase
       .from('bookmarks')
       .update({ deleted_at: new Date().toISOString() })
-      .in('id', validIds);
+      .in('id', validIds)
+      .eq('user_id', user.id);
 
     if (updateError) {
       return NextResponse.json({ error: updateError.message }, { status: 500 });

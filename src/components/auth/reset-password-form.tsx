@@ -15,14 +15,14 @@ export function ResetPasswordForm() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [step, setStep] = useState<'request' | 'confirm' | 'success'>('request');
+  const [step, setStep] = useState<'request' | 'success'>('request');
   const [formData, setFormData] = useState({
     email: '',
     newPassword: '',
     confirmPassword: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isRecoveryMode = searchParams.get('type') === 'recovery';
 
