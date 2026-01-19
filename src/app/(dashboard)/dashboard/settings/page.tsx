@@ -46,6 +46,8 @@ export default function SettingsPage() {
   const [overwriteExisting, setOverwriteExisting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importStatus, setImportStatus] = useState<string>('');
   const [importResult, setImportResult] = useState<{
     imported: number;
     skipped: number;
@@ -316,16 +318,26 @@ export default function SettingsPage() {
 
     setIsImporting(true);
     setImportResult(null);
+    setImportProgress(0);
+    setImportStatus('Preparing import...');
 
-    try {
+     try {
+      setImportStatus('Reading file...');
+
       const formData = new FormData();
       formData.append('file', importFile);
       formData.append('overwrite', overwriteExisting.toString());
+
+      setImportProgress(10);
+      setImportStatus('Processing bookmarks...');
 
       const response = await fetch('/api/bookmarks/import', {
         method: 'POST',
         body: formData,
       });
+
+      setImportProgress(70);
+      setImportStatus('Saving to database...');
 
       if (!response.ok) {
         let errorMessage = `Import failed (status ${response.status})`;
@@ -338,6 +350,8 @@ export default function SettingsPage() {
 
       const result = await response.json();
       setImportResult(result);
+      setImportProgress(100);
+      setImportStatus('Import complete!');
       fetchStats();
       router.refresh();
 
@@ -346,13 +360,19 @@ export default function SettingsPage() {
         description: `Imported ${result.imported} bookmarks, skipped ${result.skipped}`,
       });
     } catch (error) {
+      setImportProgress(0);
+      setImportStatus('');
       toast({
         title: 'Import failed',
         description: error instanceof Error ? error.message : 'Unknown error',
         variant: 'destructive',
       });
     } finally {
-      setIsImporting(false);
+      setTimeout(() => {
+        setIsImporting(false);
+        setImportProgress(0);
+        setImportStatus('');
+      }, 1500);
     }
   };
 
@@ -715,7 +735,7 @@ export default function SettingsPage() {
               Import Bookmarks
             </CardTitle>
             <CardDescription>
-              Import bookmarks from JSON or HTML files
+              Import bookmarks from JSON, HTML, or CSV files
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -726,7 +746,7 @@ export default function SettingsPage() {
               <Input
                 id="import-file"
                 type="file"
-                accept=".json,.html,.htm"
+                accept=".json,.html,.htm,.csv"
                 onChange={(e) => {
                   const file = e.target.files?.[0] || null;
                   setImportFile(file);
@@ -734,7 +754,7 @@ export default function SettingsPage() {
                 }}
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Supported formats: JSON (MimeBookmark), HTML (Netscape)
+                Supported formats: JSON (MimeBookmark), HTML (Netscape), CSV
               </p>
             </div>
 
@@ -749,23 +769,35 @@ export default function SettingsPage() {
               </label>
             </div>
 
-            <Button
-              onClick={handleImport}
-              disabled={!importFile || isImporting}
-              className="w-full"
-            >
-              {isImporting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Importing...
-                </>
-              ) : (
-                <>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Import Bookmarks
-                </>
-              )}
-            </Button>
+            {isImporting ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {importStatus}
+                  </span>
+                  <span className="text-muted-foreground">{importProgress}%</span>
+                </div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-all duration-300 ease-out"
+                    style={{ width: `${importProgress}%` }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground text-center">
+                  Please wait while your bookmarks are being imported...
+                </p>
+              </div>
+            ) : (
+              <Button
+                onClick={handleImport}
+                disabled={!importFile}
+                className="w-full"
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                Import Bookmarks
+              </Button>
+            )}
 
             {importResult && (
               <div className="bg-muted rounded-lg p-4 space-y-2">

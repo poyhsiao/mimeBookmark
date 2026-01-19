@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
       contentType === 'text/json' ||
       fileName.endsWith('.json')
     ) {
-      let data;
+      let data: { bookmarks?: unknown; collections?: unknown; tags?: unknown } = {};
       try {
         data = JSON.parse(content);
       } catch (parseError) {
@@ -134,9 +134,23 @@ export async function POST(request: NextRequest) {
       bookmarks = parsed.bookmarks;
       collections = parsed.collections;
       tags = parsed.tags;
+    } else if (
+      contentType === 'text/csv' ||
+      contentType === 'application/csv' ||
+      fileName.endsWith('.csv')
+    ) {
+      const parsed = parseCsv(content);
+      if (!parsed.success) {
+        return NextResponse.json(
+          { error: `Failed to parse CSV: ${parsed.error || 'Unknown error'}` },
+          { status: 400 }
+        );
+      }
+      bookmarks = parsed.bookmarks;
+      tags = parsed.tags;
     } else {
       return NextResponse.json(
-        { error: 'Unsupported file format. Please upload JSON or HTML file.' },
+        { error: 'Unsupported file format. Please upload JSON, HTML, or CSV file.' },
         { status: 400 }
       );
     }
@@ -379,6 +393,7 @@ export async function POST(request: NextRequest) {
           user_rating: bookmark.rating || null,
           is_favorite: bookmark.isFavorite || false,
           is_archived: bookmark.isArchived || false,
+          created_at: bookmark.createdAt ?? undefined,
         })
         .select('id')
         .single();
@@ -471,6 +486,7 @@ function parseNetscapeHtml(html: string): ParsedNetscapeResult {
 
       const icon = link.getAttribute('icon');
       const title = link.textContent?.trim() || href;
+      const faviconValue = icon || undefined;
 
       // Extract tags from folder structure
       // A -> DT -> DL -> prevSibling (DT with H3)
@@ -512,8 +528,8 @@ function parseNetscapeHtml(html: string): ParsedNetscapeResult {
       bookmarks.push({
         url: href,
         title: title,
-        favicon: icon || null,
-        createdAt: createdAt,
+        favicon: faviconValue,
+        createdAt: createdAt || undefined,
         tags: extractedTags,
       });
     });
@@ -525,5 +541,177 @@ function parseNetscapeHtml(html: string): ParsedNetscapeResult {
   const tags = Array.from(uniqueTagNames).map(name => ({ name }));
 
   return { bookmarks, collections, tags };
+}
+
+// CSV parsing function
+interface CsvParsedResult {
+  success: boolean;
+  error?: string;
+  bookmarks: ImportedBookmark[];
+  tags: ImportedTag[];
+}
+
+function parseCsv(content: string): CsvParsedResult {
+  const bookmarks: ImportedBookmark[] = [];
+  const uniqueTagNames = new Set<string>();
+
+  try {
+    // Split content into lines
+    const lines = content.trim().split(/\r?\n/);
+
+    if (lines.length < 2) {
+      return { success: true, bookmarks, tags: [] };
+    }
+    
+    // Parse header line
+    const headerLine = lines[0].toLowerCase();
+    const headers = parseCSVLine(headerLine);
+    
+    // Map common column names to our schema
+    const columnMap: Record<string, number> = {};
+    headers.forEach((header, index) => {
+      const normalized = header.trim().toLowerCase();
+      if (['url', 'link', 'href', 'address'].includes(normalized)) {
+        columnMap.url = index;
+      } else if (['title', 'name', 'subject'].includes(normalized)) {
+        columnMap.title = index;
+      } else if (['description', 'notes', 'comment', 'comments'].includes(normalized)) {
+        columnMap.description = index;
+      } else if (['tags', 'tag', 'folders', 'folder'].includes(normalized)) {
+        columnMap.tags = index;
+      } else if (['favorite', 'favourite', 'starred'].includes(normalized)) {
+        columnMap.isFavorite = index;
+      } else if (['icon', 'favicon'].includes(normalized)) {
+        columnMap.favicon = index;
+      } else if (['created', 'add_date', 'date_added', 'created_at'].includes(normalized)) {
+        columnMap.createdAt = index;
+      }
+    });
+    
+    // Process data lines
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      
+      const values = parseCSVLine(line);
+      
+      const urlIndex = columnMap.url;
+      if (urlIndex === undefined || urlIndex >= values.length) {
+        continue;
+      }
+      
+      const url = values[urlIndex]?.trim();
+      if (!url || !isValidUrl(url)) {
+        continue;
+      }
+      
+      const bookmark: ImportedBookmark = {
+        url: url,
+      };
+      
+      if (columnMap.title !== undefined && columnMap.title < values.length) {
+        const title = values[columnMap.title]?.trim();
+        if (title) bookmark.title = title;
+      }
+      
+      if (columnMap.description !== undefined && columnMap.description < values.length) {
+        const desc = values[columnMap.description]?.trim();
+        if (desc) bookmark.description = desc;
+      }
+      
+      if (columnMap.favicon !== undefined && columnMap.favicon < values.length) {
+        const favicon = values[columnMap.favicon]?.trim();
+        if (favicon) bookmark.favicon = favicon;
+      }
+      
+      if (columnMap.createdAt !== undefined && columnMap.createdAt < values.length) {
+        const createdAtRaw = values[columnMap.createdAt]?.trim();
+        if (createdAtRaw) {
+          // Validate and parse the date
+          const parsedDate = Date.parse(createdAtRaw);
+          if (!isNaN(parsedDate)) {
+            const date = new Date(parsedDate);
+            if (date.toString() !== 'Invalid Date') {
+              bookmark.createdAt = date.toISOString();
+            }
+            // If invalid, skip setting createdAt (will use default)
+          }
+        }
+      }
+      
+      if (columnMap.isFavorite !== undefined && columnMap.isFavorite < values.length) {
+        const favValue = values[columnMap.isFavorite]?.trim().toLowerCase();
+        bookmark.isFavorite = favValue === 'true' || favValue === '1' || favValue === 'yes';
+      }
+      
+      if (columnMap.tags !== undefined && columnMap.tags < values.length) {
+        const tagsValue = values[columnMap.tags]?.trim();
+        if (tagsValue) {
+          // Support various tag separators
+          const tags = tagsValue.split(/[,;|]/).map(t => t.trim()).filter(Boolean);
+          bookmark.tags = tags;
+          
+          // Collect unique tag names
+          for (const tag of tags) {
+            uniqueTagNames.add(tag);
+          }
+        }
+      }
+      
+      bookmarks.push(bookmark);
+    }
+  } catch (e) {
+    console.error('Error parsing CSV:', e);
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : 'Unknown CSV parse error',
+      bookmarks: [],
+      tags: [],
+    };
+  }
+
+  // Convert unique tag names to tags array
+  const tags = Array.from(uniqueTagNames).map(name => ({ name }));
+
+  return { success: true, bookmarks, tags };
+}
+
+// Helper to parse a CSV line (handles quoted values)
+function parseCSVLine(line: string): string[] {
+  const values: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        // Escaped quote
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      values.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  
+  values.push(current);
+  return values;
+}
+
+// Helper to validate URL
+function isValidUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 

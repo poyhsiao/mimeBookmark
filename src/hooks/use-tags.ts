@@ -24,12 +24,14 @@ export interface UseTagsReturn {
   pagination: Pagination | null;
   loading: boolean;
   error: string | null;
+  hotTags: Tag[];
   fetchTags: (options?: {
     page?: number;
     limit?: number;
     search?: string;
     sort?: "newest" | "oldest" | "name";
   }) => Promise<void>;
+  fetchHotTags: (limit?: number) => Promise<void>;
   createTag: (tag: { name: string; color?: string }) => Promise<Tag | null>;
   updateTag: (id: string, updates: Partial<Tag>) => Promise<boolean>;
   deleteTag: (id: string) => Promise<boolean>;
@@ -42,6 +44,7 @@ export interface UseTagsReturn {
 
 export function useTags(): UseTagsReturn {
   const [tags, setTags] = useState<Tag[]>([]);
+  const [hotTags, setHotTags] = useState<Tag[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loadingCount, setLoadingCount] = useState(0);
   const loading = loadingCount > 0;
@@ -144,6 +147,32 @@ export function useTags(): UseTagsReturn {
     [],
   );
 
+  const fetchHotTags = useCallback(
+    async (limit: number = 10): Promise<void> => {
+      setLoadingCount((c) => c + 1);
+      setError(null);
+
+      try {
+        const params = new URLSearchParams();
+        params.set("limit", limit.toString());
+
+        const response = await fetch(`/api/tags/hot?${params}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to fetch hot tags");
+        }
+
+        setHotTags(data.tags);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred");
+      } finally {
+        setLoadingCount((c) => c - 1);
+      }
+    },
+    [],
+  );
+
   const deleteTag = useCallback(async (id: string): Promise<boolean> => {
     setLoadingCount((c) => c + 1);
     setError(null);
@@ -229,7 +258,9 @@ export function useTags(): UseTagsReturn {
     pagination,
     loading,
     error,
+    hotTags,
     fetchTags,
+    fetchHotTags,
     createTag,
     updateTag,
     deleteTag,

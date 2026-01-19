@@ -87,6 +87,23 @@ export async function signInWithOAuth(provider: 'google' | 'github') {
   return { error: null, url: data.url };
 }
 
+export async function signInWithMagicLink(email: string) {
+  const supabase = createClient();
+
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+    },
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  return { error: null };
+}
+
 export async function resetPassword(email: string) {
   const supabase = createClient();
 
