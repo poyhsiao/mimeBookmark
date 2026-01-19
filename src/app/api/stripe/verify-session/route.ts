@@ -3,8 +3,73 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-12-15.clover' as any,
+  apiVersion: '2024-11-20.acacia',
 });
+
+const PRICE_PLAN_MAP: Record<string, 'pro' | 'team'> = Object.fromEntries(
+  [
+    [process.env.STRIPE_PRICE_PRO_MONTHLY, 'pro'],
+    [process.env.STRIPE_PRICE_PRO_YEARLY, 'pro'],
+    [process.env.STRIPE_PRICE_TEAM_MONTHLY, 'team'],
+    [process.env.STRIPE_PRICE_TEAM_YEARLY, 'team'],
+  ].filter(([id]) => !!id) as [string, 'pro' | 'team'][],
+);
+
+function getSessionCustomerId(session: Stripe.Checkout.Session): string | null {
+  if (!session.customer) return null;
+  return typeof session.customer === 'string'
+    ? session.customer
+    : session.customer.id ?? null;
+}
+
+function sessionBelongsToUser(opts: {
+  session: Stripe.Checkout.Session;
+  user: { email?: string | null };
+  profile: { stripe_customer_id?: string | null } | null;
+}): boolean {
+  const { session, user, profile } = opts;
+  const sessionCustomerId = getSessionCustomerId(session);
+
+  const emailMatches =
+    session.customer_email != null &&
+    user.email != null &&
+    session.customer_email === user.email;
+
+  const customerIdMatches =
+    profile?.stripe_customer_id != null &&
+    sessionCustomerId != null &&
+    sessionCustomerId === profile.stripe_customer_id;
+
+  return emailMatches || customerIdMatches;
+}
+
+function getPriceIdFromSubscription(subscription: Stripe.Subscription): string | null {
+  const items = subscription.items?.data;
+  if (!items || items.length === 0) {
+    console.error('Subscription has no items or empty items array');
+    return null;
+  }
+  return items[0]?.price?.id ?? null;
+}
+
+function resolvePlanFromSession(session: Stripe.Checkout.Session): { plan: 'pro' | 'team'; subscription: Stripe.Subscription } | null {
+  if (!session.subscription) {
+    console.error('No subscription found in session');
+    return null;
+  }
+
+  const subscription = session.subscription as Stripe.Subscription;
+  const priceId = getPriceIdFromSubscription(subscription);
+  if (!priceId) return null;
+
+  const plan = PRICE_PLAN_MAP[priceId] as 'pro' | 'team' | undefined;
+  if (!plan) {
+    console.error('Unknown or unconfigured Stripe price ID:', priceId);
+    return null;
+  }
+
+  return { plan, subscription };
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -25,7 +90,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Retrieve the checkout session
     const session = await stripe.checkout.sessions.retrieve(sessionId, {
       expand: ['subscription', 'subscription.items.data.price'],
     });
@@ -37,99 +101,38 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch the user's profile to get their Stripe customer ID
     const { data: profile } = await supabase
       .from('profiles')
       .select('stripe_customer_id')
       .eq('id', user.id)
       .single();
 
-    // Verify the session belongs to this user
-    const sessionCustomerId = typeof session.customer === 'string'
-      ? session.customer
-      : session.customer?.id;
-
-    const emailMatches = session.customer_email != null && user.email != null && session.customer_email === user.email;
-    const customerIdMatches = profile?.stripe_customer_id != null && sessionCustomerId != null && sessionCustomerId === profile.stripe_customer_id;
-
-    if (!emailMatches && !customerIdMatches) {
+    if (!sessionBelongsToUser({ session, user, profile })) {
       return NextResponse.json(
         { error: 'Session does not belong to this user' },
         { status: 403 }
       );
     }
 
-    // Ensure session has a subscription (this endpoint is for subscription checkout only)
-    if (!session.subscription) {
-      console.error('No subscription found in session');
+    const result = resolvePlanFromSession(session);
+    if (!result) {
       return NextResponse.json(
-        { error: 'This session does not contain a subscription. Please use the correct checkout flow.' },
+        { error: 'Unknown or invalid subscription plan. Please contact support.' },
         { status: 400 }
       );
     }
 
-    // Determine the plan from the session
-    const subscription = session.subscription as Stripe.Subscription;
+    const { plan, subscription } = result;
 
-    // Guard against empty items array
-    if (!subscription.items || !subscription.items.data || subscription.items.data.length === 0) {
-      console.error('Subscription has no items or empty items array');
-      return NextResponse.json(
-        { error: 'Invalid subscription: no items found' },
-        { status: 400 }
-      );
-    }
-
-    const priceId = subscription.items.data[0].price.id;
-
-    // Build price-to-plan map only from configured (non-empty) environment variables
-    const pricePlanMap: Record<string, string> = {};
-    if (process.env.STRIPE_PRICE_PRO_MONTHLY) {
-      pricePlanMap[process.env.STRIPE_PRICE_PRO_MONTHLY] = 'pro';
-    }
-    if (process.env.STRIPE_PRICE_PRO_YEARLY) {
-      pricePlanMap[process.env.STRIPE_PRICE_PRO_YEARLY] = 'pro';
-    }
-    if (process.env.STRIPE_PRICE_TEAM_MONTHLY) {
-      pricePlanMap[process.env.STRIPE_PRICE_TEAM_MONTHLY] = 'team';
-    }
-    if (process.env.STRIPE_PRICE_TEAM_YEARLY) {
-      pricePlanMap[process.env.STRIPE_PRICE_TEAM_YEARLY] = 'team';
-    }
-
-    // Look up the plan; must be valid
-    let plan: string;
-    if (priceId && pricePlanMap[priceId]) {
-      plan = pricePlanMap[priceId];
-    } else {
-      // Unknown or unconfigured price ID
-      console.error('Unknown or unconfigured Stripe price ID:', priceId);
-      return NextResponse.json(
-        { error: 'Unknown subscription plan. Please contact support.' },
-        { status: 400 }
-      );
-    }
-
-    // Update the user's profile with the new subscription
-    // plan is guaranteed to be 'pro' or 'team' from pricePlanMap
-    const subscriptionTier = plan;
-    const subscriptionStatus = session.subscription
-      ? (session.subscription as Stripe.Subscription).status
-      : 'active';
+    const sessionCustomerId = getSessionCustomerId(session);
 
     const { error: updateError } = await supabase
       .from('profiles')
       .update({
-        subscription_tier: subscriptionTier,
-        subscription_status: subscriptionStatus,
-        subscription_id: session.subscription
-          ? (session.subscription as Stripe.Subscription).id
-          : null,
-        stripe_customer_id: session.customer
-          ? typeof session.customer === 'string'
-            ? session.customer
-            : session.customer.id
-          : null,
+        subscription_tier: plan,
+        subscription_status: subscription.status,
+        subscription_id: subscription.id,
+        stripe_customer_id: sessionCustomerId,
         updated_at: new Date().toISOString(),
       })
       .eq('id', user.id);

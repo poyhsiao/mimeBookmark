@@ -110,13 +110,8 @@
 - [x] CSV 格式导入 - ✅ 已实现
 - [x] HTML 书签导出 - app/api/bookmarks/export/route.ts
 - [x] JSON 格式导出 - app/api/bookmarks/export/route.ts
-<<<<<<< HEAD
-- [x] 导入进度显示 - ✅ 已实现（客户端进度显示）
-- [x] 冲突处理 - ✅ 已实现（覆盖同 URL）
-=======
 - [x] 导入进度显示 - 已实现 (前端进度条 + 状态显示)
 - [x] 冲突处理 - 已实现 (overwrite 选项 + 跳过重复)
->>>>>>> 45801db (feat: implement Stripe session verification and auth enhancements)
 
 **验收标准**:
 - 支持主流书签格式导入导出 - 部分完成
@@ -294,11 +289,7 @@
 
 - [x] 定价页面 - ✅ 已创建 src/app/(marketing)/pricing/page.tsx
 - [x] 支付流程 - app/api/stripe/checkout/route.ts
-<<<<<<< HEAD
-- [x] 升级成功页面 - ✅ 已创建 src/app/(dashboard)/upgrade-success/page.tsx
-=======
 - [x] 升级成功页面 - 已更新 app/(dashboard)/upgrade-success/page.tsx
->>>>>>> 45801db (feat: implement Stripe session verification and auth enhancements)
 - [x] 订阅管理页面 - app/api/stripe/portal/route.ts
 
 ---

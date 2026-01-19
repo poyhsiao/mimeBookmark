@@ -375,6 +375,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, auth
 AS $$
 BEGIN
   -- Verify the caller is authorized to update this user's preferences
@@ -385,7 +386,7 @@ BEGIN
   -- First merge preferences into existing JSONB
   UPDATE profiles
   SET
-    preferences = COALESCE(profiles.preferences, '{}'::jsonb) || p_preferences,
+    preferences = COALESCE(profiles.preferences, '{}'::jsonb) || COALESCE(p_preferences, '{}'::jsonb),
     display_name = COALESCE(p_display_name, profiles.display_name),
     timezone = COALESCE(p_timezone, profiles.timezone),
     updated_at = NOW()
@@ -418,13 +419,17 @@ BEGIN
     DELETE FROM search_history WHERE created_at < NOW() - INTERVAL '90 days';
   END IF;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
 
 -- Schedule data cleanup (run daily at 3 AM)
 -- Unschedule existing job if it exists to make this idempotent
-SELECT cron.unschedule('cleanup-old-data') WHERE EXISTS (
-  SELECT 1 FROM cron.job WHERE jobname = 'cleanup-old-data'
-);
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'cleanup-old-data') THEN
+    PERFORM cron.unschedule('cleanup-old-data');
+  END IF;
+END;
+$$;
 
 SELECT cron.schedule(
   'cleanup-old-data',

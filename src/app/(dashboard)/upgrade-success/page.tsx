@@ -69,33 +69,43 @@ export default function UpgradeSuccessPage() {
     const sessionId = searchParams.get('session_id');
     const planId = searchParams.get('plan');
 
-    if (planId && PRICING_PLANS.find(p => p.id === planId)) {
-      setPlan(PRICING_PLANS.find(p => p.id === planId) || null);
+    if (!sessionId) {
+      setStatus('error');
+      setMessage('Invalid session. Please try upgrading again.');
+      return;
     }
 
-    if (!sessionId) {
-      setStatus('success');
-      setMessage('Your subscription has been activated successfully!');
-      return;
+    const getPlanById = (id: string | null): PricingPlan | null => {
+      if (!id) return null;
+      return PRICING_PLANS.find(p => p.id === id) ?? null;
+    };
+
+    const initialPlan = getPlanById(planId);
+    if (initialPlan) {
+      setPlan(initialPlan);
     }
 
     const verifySession = async () => {
       try {
         const params = new URLSearchParams({ session_id: sessionId });
         const response = await fetch(`/api/stripe/verify-session?${params.toString()}`);
+
         if (response.ok) {
           const data = await response.json();
           setStatus('success');
           setMessage(data.message || 'Your subscription has been activated successfully!');
-          if (data.plan && PRICING_PLANS.find(p => p.id === data.plan)) {
-            setPlan(PRICING_PLANS.find(p => p.id === data.plan) || null);
+
+          const verifiedPlan = getPlanById(data.plan ?? null);
+          if (verifiedPlan) {
+            setPlan(verifiedPlan);
           }
         } else {
           const errorData = await response.json().catch(() => ({}));
           setStatus('error');
           setMessage(errorData.error || 'Failed to verify your subscription');
         }
-      } catch {
+      } catch (error) {
+        console.error('Failed to verify subscription session:', error);
         setStatus('error');
         setMessage('An error occurred while verifying your subscription');
       }
@@ -144,23 +154,23 @@ export default function UpgradeSuccessPage() {
 
         <CardContent className="space-y-6">
           {status === 'success' && plan && (
-            <div className="bg-muted rounded-lg p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Plan</span>
-                <span className="font-semibold flex items-center gap-1">
-                  <Sparkles className="w-4 h-4 text-primary" />
-                  {plan.name}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Price</span>
-                <span className="font-semibold">{plan.price}/{plan.interval}</span>
-              </div>
-            </div>
-          )}
-
-          {status === 'success' && plan && (
             <>
+              <div className="bg-muted rounded-lg p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Plan</span>
+                  <span className="font-semibold flex items-center gap-1">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                    {plan.name}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Price</span>
+                  <span className="font-semibold">
+                    {plan.price}/{plan.interval}
+                  </span>
+                </div>
+              </div>
+
               <div className="bg-muted rounded-lg p-4 text-left">
                 <h3 className="font-semibold mb-3">What&apos;s included:</h3>
                 <ul className="space-y-2">
