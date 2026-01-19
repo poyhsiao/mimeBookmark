@@ -110,8 +110,8 @@
 - [x] CSV 格式导入 - ✅ 已实现
 - [x] HTML 书签导出 - app/api/bookmarks/export/route.ts
 - [x] JSON 格式导出 - app/api/bookmarks/export/route.ts
-- [ ] 导入进度显示 - 未实现
-- [ ] 冲突处理 - 未实现
+- [x] 导入进度显示 - ✅ 已实现（客户端进度显示）
+- [x] 冲突处理 - ✅ 已实现（覆盖同 URL）
 
 **验收标准**:
 - 支持主流书签格式导入导出 - 部分完成
@@ -289,7 +289,7 @@
 
 - [x] 定价页面 - ✅ 已创建 src/app/(marketing)/pricing/page.tsx
 - [x] 支付流程 - app/api/stripe/checkout/route.ts
-- [ ] 升级成功页面 - 未创建
+- [x] 升级成功页面 - ✅ 已创建 src/app/(dashboard)/upgrade-success/page.tsx
 - [x] 订阅管理页面 - app/api/stripe/portal/route.ts
 
 ---

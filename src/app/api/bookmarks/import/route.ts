@@ -393,6 +393,7 @@ export async function POST(request: NextRequest) {
           user_rating: bookmark.rating || null,
           is_favorite: bookmark.isFavorite || false,
           is_archived: bookmark.isArchived || false,
+          created_at: bookmark.createdAt ?? undefined,
         })
         .select('id')
         .single();
