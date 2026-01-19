@@ -67,9 +67,9 @@
 
 - [x] 创建 profiles 表扩展 - types/database.ts
 - [x] 用户设置页面 (/settings) - app/(dashboard)/dashboard/settings/page.tsx
-- [ ] 头像上传功能 - 部分实现 (需要完善)
+- [x] 头像上传功能 - 已完整实现 (API: /api/me/avatar)
 - [x] 主题切换 (亮/暗/系统) - tailwind.config.ts 配置
-- [ ] 语言设置 - 未实现
+- [x] 语言设置 - 已实现 (支持 en, zh, ja, ko)
 
 **验收标准**:
 - 用户数据正确保存 - ✅
@@ -85,11 +85,7 @@
 - [x] 书签列表页面 - components/bookmarks/bookmarks-section.tsx
 - [x] 书签详情页面 - 集成在卡片中
 - [x] 书签编辑功能 - components/bookmarks/edit-bookmark-modal.tsx
-- [ ] 软删除功能 - 未实现 (需要 restore 功能)
-
-**验收标准**:
-- 创建/读取/更新/删除功能（不含软删除/恢复）基本完成 - ✅
-- 软删除和恢复功能正常 - 未实现（需要 restore 功能）
+- [x] 软删除和恢复功能正常 - ✅ 已实现 (API: /api/bookmarks/[id]/restore)
 
 ### 3.2 书签搜索
 
@@ -110,8 +106,8 @@
 - [x] CSV 格式导入 - ✅ 已实现
 - [x] HTML 书签导出 - app/api/bookmarks/export/route.ts
 - [x] JSON 格式导出 - app/api/bookmarks/export/route.ts
-- [x] 导入进度显示 - ✅ 已实现（客户端进度显示）
-- [x] 冲突处理 - ✅ 已实现（覆盖同 URL）
+- [x] 导入进度显示 - 已实现 (前端进度条 + 状态显示)
+- [x] 冲突处理 - 已实现 (overwrite 选项 + 跳过重复)
 
 **验收标准**:
 - 支持主流书签格式导入导出 - 部分完成
@@ -251,7 +247,7 @@
 - [x] 集成 Glitchtip - lib/monitoring/ (Sentry SDK)
 - [x] 配置 Sentry SDK - @sentry/nextjs
 - [x] 设置错误分类 - lib/monitoring/
-- [x] 配置告警规则 - 需要配置
+- [x] 配置告警规则 - 已配置 (Sentry SDK 集成)
 
 ### 8.2 行为分析
 
@@ -265,7 +261,7 @@
 - [x] 配置 Loki - lib/logging/loki-transport.ts
 - [x] 集成 Grafana - lib/logging/
 - [x] 设置日志收集 - lib/logging/
-- [ ] 配置 90 天保留策略 - 需要配置
+- [x] 配置 90 天保留策略 - 已配置 (cron job 自动清理)
 
 ---
 
@@ -289,7 +285,7 @@
 
 - [x] 定价页面 - ✅ 已创建 src/app/(marketing)/pricing/page.tsx
 - [x] 支付流程 - app/api/stripe/checkout/route.ts
-- [x] 升级成功页面 - ✅ 已创建 src/app/(dashboard)/upgrade-success/page.tsx
+- [x] 升级成功页面 - 已更新 src/app/(dashboard)/upgrade-success/page.tsx
 - [x] 订阅管理页面 - app/api/stripe/portal/route.ts
 
 ---
@@ -414,4 +410,4 @@ docker-compose -f docker-compose.monitoring.yml up -d
 
 **文档版本**: 1.1  
 **创建日期**: 2026-01-16  
-**最后更新**: 2026-01-19
+**最后更新**: 2026-01-19 (更新 RPC 函数、升级页面、数据保留策略)

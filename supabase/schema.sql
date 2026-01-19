@@ -7,6 +7,9 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Enable PGroonga extension for full-text search
 CREATE EXTENSION IF NOT EXISTS pgroonga;
 
+-- Enable pg_cron extension for scheduled tasks
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
 -- Profiles table (extends auth.users)
 CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -355,3 +358,81 @@ CREATE TRIGGER set_bookmark_domain_update
   FOR EACH ROW
   WHEN (NEW.url IS DISTINCT FROM OLD.url)
   EXECUTE FUNCTION set_bookmark_domain();
+
+-- RPC function to merge user preferences (used by settings API)
+CREATE OR REPLACE FUNCTION merge_user_preferences(
+  p_user_id UUID,
+  p_preferences JSONB,
+  p_display_name TEXT DEFAULT NULL,
+  p_timezone TEXT DEFAULT NULL
+)
+RETURNS TABLE (
+  id UUID,
+  display_name TEXT,
+  timezone TEXT,
+  preferences JSONB,
+  updated_at TIMESTAMPTZ
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+BEGIN
+  -- Verify the caller is authorized to update this user's preferences
+  IF auth.uid() IS NULL OR auth.uid() != p_user_id THEN
+    RAISE EXCEPTION 'Unauthorized: You can only update your own preferences';
+  END IF;
+
+  -- First merge preferences into existing JSONB
+  UPDATE profiles
+  SET
+    preferences = COALESCE(profiles.preferences, '{}'::jsonb) || COALESCE(p_preferences, '{}'::jsonb),
+    display_name = COALESCE(p_display_name, profiles.display_name),
+    timezone = COALESCE(p_timezone, profiles.timezone),
+    updated_at = NOW()
+  WHERE profiles.id = p_user_id;
+
+  -- Return the updated profile with qualified column names
+  RETURN QUERY
+  SELECT
+    profiles.id AS id,
+    profiles.display_name AS display_name,
+    profiles.timezone AS timezone,
+    profiles.preferences AS preferences,
+    profiles.updated_at AS updated_at
+  FROM profiles
+  WHERE profiles.id = p_user_id;
+END;
+$$;
+
+-- Data retention cleanup function (90 days)
+CREATE OR REPLACE FUNCTION cleanup_old_data()
+RETURNS void AS $$
+BEGIN
+  -- Clean up old audit logs (keep 90 days) - only if table exists
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'audit_logs') THEN
+    DELETE FROM audit_logs WHERE created_at < NOW() - INTERVAL '90 days';
+  END IF;
+
+  -- Clean up old search history (keep 90 days) - only if table exists
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'search_history') THEN
+    DELETE FROM search_history WHERE created_at < NOW() - INTERVAL '90 days';
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
+
+-- Schedule data cleanup (run daily at 3 AM)
+-- Unschedule existing job if it exists to make this idempotent
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'cleanup-old-data') THEN
+    PERFORM cron.unschedule('cleanup-old-data');
+  END IF;
+END;
+$$;
+
+SELECT cron.schedule(
+  'cleanup-old-data',
+  '0 3 * * *',
+  'SELECT cleanup_old_data()'
+);
