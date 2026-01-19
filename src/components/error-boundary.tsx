@@ -1,171 +1,66 @@
-"use client";
+'use client';
 
-import React, { Component, ErrorInfo, ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import { Component, ErrorInfo, ReactNode } from 'react';
+import * as Sentry from '@sentry/nextjs';
 
-interface Props {
+interface ErrorBoundaryProps {
   children: ReactNode;
   fallback?: ReactNode;
-  isDev?: boolean;
 }
 
-interface State {
+interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
-  retryCount: number;
-  nextAllowedRetry: number;
 }
 
-export class ErrorBoundary extends Component<Props, State> {
-  public state: State;
-
-  constructor(props: Props) {
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = {
-      hasError: false,
-      error: null,
-      retryCount: 0,
-      nextAllowedRetry: 0,
-    };
+    this.state = { hasError: false, error: null };
   }
 
-  private countdownInterval: NodeJS.Timeout | null = null;
-
-  public static getDerivedStateFromError(error: Error): Partial<State> {
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
   }
 
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    console.error("ErrorBoundary caught an error:", error, errorInfo);
+  componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+    Sentry.captureException(error, {
+      extra: {
+        componentStack: errorInfo.componentStack,
+      },
+    });
   }
 
-  private retryTimeout: NodeJS.Timeout | null = null;
-
-  public componentWillUnmount(): void {
-    if (this.retryTimeout) {
-      clearTimeout(this.retryTimeout);
-    }
-    if (this.countdownInterval) {
-      clearInterval(this.countdownInterval);
-    }
-  }
-
-  private handleRetry = (): void => {
-    // First show confirm dialog, only proceed if user confirms
-    const shouldReload = window.confirm(
-      "An error occurred. Do you want to reload the page to try again?",
-    );
-
-    if (shouldReload) {
-      // User confirmed - reload the page
-      window.location.reload();
-    }
-    // If user cancelled, do nothing - don't reset state or re-render
-  };
-
-  private handleReset = (): void => {
-    const COOLDOWN_MS = 1000;
-    const nextAllowedRetry = Date.now() + COOLDOWN_MS;
-
-    if (this.countdownInterval) {
-      clearInterval(this.countdownInterval);
-    }
-
-    this.countdownInterval = setInterval(() => {
-      if (Date.now() >= nextAllowedRetry) {
-        if (this.countdownInterval) {
-          clearInterval(this.countdownInterval);
-          this.countdownInterval = null;
-        }
-        return;
-      }
-      this.forceUpdate();
-    }, 1000);
-
-    this.setState((prevState) => ({
-      hasError: false,
-      error: null,
-      retryCount: prevState.retryCount + 1,
-      nextAllowedRetry,
-    }));
-
-    if (this.retryTimeout) {
-      clearTimeout(this.retryTimeout);
-    }
-
-    this.retryTimeout = setTimeout(() => {
-      if (this.countdownInterval) {
-        clearInterval(this.countdownInterval);
-        this.countdownInterval = null;
-      }
-    }, COOLDOWN_MS);
-  };
-
-  public render(): ReactNode {
+  render(): ReactNode {
     if (this.state.hasError) {
-      // Custom fallback UI when error is caught
       if (this.props.fallback) {
         return this.props.fallback;
       }
-
       return (
-        <div className='flex flex-col items-center justify-center min-h-[400px] p-8 text-center'>
-          <div className='max-w-md space-y-4'>
-            <h2 className='text-2xl font-bold text-red-600'>
-              Something went wrong
-            </h2>
-            <p className='text-gray-600'>
-              An unexpected error occurred. Please try again.
-            </p>
-            {this.state.error && (this.props.isDev ?? process.env.NODE_ENV === "development") && (
-              <details className='text-left text-sm text-gray-500 bg-gray-50 p-4 rounded'>
-                <summary>Error details</summary>
-                <pre className='mt-2 whitespace-pre-wrap'>
-                  {this.state.error.message}
-                </pre>
-              </details>
-            )}
-            <div className='flex gap-4 justify-center pt-4'>
-              <Button onClick={this.handleRetry}>Reload Page</Button>
-              <Button
-                variant='outline'
-                onClick={this.handleReset}
-                disabled={
-                  this.state.retryCount >= 3 ||
-                  Date.now() < this.state.nextAllowedRetry
-                }
-              >
-                {this.state.retryCount >= 3
-                  ? "Too Many Retries"
-                  : (() => {
-                      const remainingMs = this.state.nextAllowedRetry - Date.now();
-                      if (remainingMs <= 0) {
-                        return "Try Again (No Reload)";
-                      }
-                      const seconds = Math.max(1, Math.ceil(remainingMs / 1000));
-                      return `Wait ${seconds}s`;
-                    })()}
-              </Button>
-            </div>
-          </div>
+        <div className="p-4 border border-red-200 rounded-lg bg-red-50 dark:bg-red-900/20">
+          <h2 className="text-lg font-semibold text-red-700 dark:text-red-400">
+            Something went wrong
+          </h2>
+          <p className="mt-2 text-sm text-red-600 dark:text-red-300">
+            {this.state.error?.message || 'An unexpected error occurred'}
+          </p>
+          <button
+            type="button"
+            className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            onClick={() => {
+              this.setState({ hasError: false, error: null });
+              if (confirm('确定要重新加载页面吗？未保存的更改可能会丢失。')) {
+                window.location.reload();
+              }
+            }}
+          >
+            Try again
+          </button>
         </div>
       );
     }
-
     return this.props.children;
   }
 }
 
-// Helper function to create a wrapped error boundary for specific components
-export function withErrorBoundary<P extends object>(
-  Component: React.ComponentType<P>,
-  fallback?: ReactNode,
-): React.FC<P> {
-  return function WrappedComponent(props: P) {
-    return (
-      <ErrorBoundary fallback={fallback}>
-        <Component {...props} />
-      </ErrorBoundary>
-    );
-  };
-}
+export default ErrorBoundary;

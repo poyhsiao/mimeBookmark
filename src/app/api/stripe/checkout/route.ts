@@ -4,6 +4,16 @@ import { createCheckoutSession } from '@/lib/stripe/server';
 import { getPlan, SUBSCRIPTION_PLANS } from '@/lib/subscription/plans';
 import type { PlanType } from '@/types/subscription';
 
+function isValidUrl(url: string, allowedDomains: string[]): boolean {
+  try {
+    const parsedUrl = new URL(url);
+    const hostname = parsedUrl.hostname.toLowerCase();
+    return allowedDomains.some(domain => hostname === domain || hostname.endsWith(`.${domain}`));
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -13,18 +23,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    let body: { planId: PlanType; successUrl: string; cancelUrl: string };
-    try {
-      body = await request.json() as { planId: PlanType; successUrl: string; cancelUrl: string };
-    } catch (parseError) {
-      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
-    }
-
-    const { planId, successUrl, cancelUrl } = body;
-
-    if (!planId || !successUrl || !cancelUrl) {
-      return NextResponse.json({ error: 'Missing required fields: planId, successUrl, cancelUrl' }, { status: 400 });
-    }
+    const body = await request.json();
+    const { planId, successUrl, cancelUrl } = body as {
+      planId: PlanType;
+      successUrl?: string;
+      cancelUrl?: string;
+    };
 
     if (!planId || !SUBSCRIPTION_PLANS[planId]) {
       return NextResponse.json(
@@ -41,42 +45,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: profile, error } = await supabase
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const allowedDomains = [new URL(appUrl).hostname];
+
+    const validatedSuccessUrl = successUrl && isValidUrl(successUrl, allowedDomains)
+      ? successUrl
+      : `${appUrl}/settings/billing?success=true`;
+    const validatedCancelUrl = cancelUrl && isValidUrl(cancelUrl, allowedDomains)
+      ? cancelUrl
+      : `${appUrl}/settings/billing?canceled=true`;
+
+    const { data: profile } = await supabase
       .from('profiles')
       .select('stripe_customer_id, email')
       .eq('id', user.id)
       .single();
-
-    if (error || !profile) {
-      console.error('Error fetching profile:', error);
-      return NextResponse.json({ error: 'Failed to fetch user profile' }, { status: 500 });
-    }
-
-    const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-
-    const validateAndNormalizeUrl = (url: string | undefined, defaultPath: string): string => {
-      if (!url) {
-        return `${appBaseUrl}${defaultPath}`;
-      }
-
-      try {
-        const parsedUrl = new URL(url, appBaseUrl);
-        const requestOrigin = new URL(request.url).origin;
-
-        if (parsedUrl.origin !== requestOrigin && parsedUrl.origin !== appBaseUrl) {
-          console.warn(`URL origin mismatch: ${parsedUrl.origin} != ${requestOrigin}, falling back to default`);
-          return `${appBaseUrl}${defaultPath}`;
-        }
-
-        return parsedUrl.toString();
-      } catch (error) {
-        console.warn(`Invalid URL provided: ${url}, falling back to default`, error);
-        return `${appBaseUrl}${defaultPath}`;
-      }
-    };
-
-    const validatedSuccessUrl = validateAndNormalizeUrl(successUrl, '/settings/billing?success=true');
-    const validatedCancelUrl = validateAndNormalizeUrl(cancelUrl, '/settings/billing?canceled=true');
 
     const session = await createCheckoutSession({
       priceId: plan.priceId,
@@ -85,8 +68,8 @@ export async function POST(request: NextRequest) {
       successUrl: validatedSuccessUrl,
       cancelUrl: validatedCancelUrl,
       mode: 'subscription',
-      clientReferenceId: user.id,
       metadata: {
+        userId: user.id,
         planId,
       },
     });

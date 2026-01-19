@@ -3,7 +3,6 @@ import { NextRequest } from 'next/server';
 
 vi.mock('@/lib/stripe/server', () => ({
   createCheckoutSession: vi.fn(),
-  // TODO: Add tests for createCustomerPortalSession (currently unused mock)
   createCustomerPortalSession: vi.fn(),
 }));
 
@@ -41,7 +40,7 @@ const mockSupabase = {
 
 const mockUser = { id: 'test-user-id', email: 'test@example.com' };
 
-describe('POST /api/stripe/checkout', () => {
+describe('GET /api/stripe/checkout', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(createSupabaseClient).mockResolvedValue(mockSupabase as any);
@@ -63,7 +62,7 @@ describe('POST /api/stripe/checkout', () => {
 
     const request = new NextRequest(new URL('/api/stripe/checkout', 'http://localhost'), {
       method: 'POST',
-      body: JSON.stringify({ planId: 'invalid', successUrl: 'http://localhost:3000/success', cancelUrl: 'http://localhost:3000/cancel' }),
+      body: JSON.stringify({ planId: 'invalid' }),
     });
     const response = await POST(request);
     expect(response.status).toBe(400);
@@ -76,7 +75,7 @@ describe('POST /api/stripe/checkout', () => {
 
     const request = new NextRequest(new URL('/api/stripe/checkout', 'http://localhost'), {
       method: 'POST',
-      body: JSON.stringify({ planId: 'free', successUrl: 'http://localhost:3000/success', cancelUrl: 'http://localhost:3000/cancel' }),
+      body: JSON.stringify({ planId: 'free' }),
     });
     const response = await POST(request);
     expect(response.status).toBe(400);
@@ -89,7 +88,7 @@ describe('POST /api/stripe/checkout', () => {
     vi.mocked(mockSupabase.from).mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ data: { id: mockUser.id, default_plan: 'free', stripe_customer_id: null, email: mockUser.email }, error: null }),
+      single: vi.fn().mockResolvedValue({ data: null, error: null }),
     });
     vi.mocked(createCheckoutSession).mockResolvedValue({
       id: 'session_123',
@@ -98,7 +97,7 @@ describe('POST /api/stripe/checkout', () => {
 
     const request = new NextRequest(new URL('/api/stripe/checkout', 'http://localhost'), {
       method: 'POST',
-      body: JSON.stringify({ planId: 'pro', successUrl: 'http://localhost:3000/settings/billing?success=true', cancelUrl: 'http://localhost:3000/settings/billing?canceled=true' }),
+      body: JSON.stringify({ planId: 'pro' }),
     });
     const response = await POST(request);
 

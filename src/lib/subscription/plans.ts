@@ -1,45 +1,5 @@
 import type { SubscriptionPlan, PlanType } from '@/types/subscription';
 
-// Stripe price ID validation pattern
-const STRIPE_PRICE_ID_PATTERN = /^price_/;
-
-// Validate Stripe price ID format
-function validatePriceId(priceId: string | undefined, planName: string): string {
-  if (!priceId) {
-    throw new Error(
-      `Missing required environment variable for ${planName} plan price ID. ` +
-      `Please set STRIPE_PRICE_PRO (for Pro) or STRIPE_PRICE_TEAM (for Team) with a valid Stripe price ID.`
-    );
-  }
-
-  if (!STRIPE_PRICE_ID_PATTERN.test(priceId)) {
-    throw new Error(
-      `Invalid Stripe price ID format for ${planName}: "${priceId}". ` +
-      `Price IDs must start with "price_" (e.g., "price_1234567890abcdef").`
-    );
-  }
-
-  return priceId;
-}
-
-// Lazy validation getters for Stripe price IDs
-let _STRIPE_PRICE_PRO: string | null = null;
-let _STRIPE_PRICE_TEAM: string | null = null;
-
-function getStripePricePro(): string {
-  if (_STRIPE_PRICE_PRO === null) {
-    _STRIPE_PRICE_PRO = validatePriceId(process.env.STRIPE_PRICE_PRO, 'Pro');
-  }
-  return _STRIPE_PRICE_PRO;
-}
-
-function getStripePriceTeam(): string {
-  if (_STRIPE_PRICE_TEAM === null) {
-    _STRIPE_PRICE_TEAM = validatePriceId(process.env.STRIPE_PRICE_TEAM, 'Team');
-  }
-  return _STRIPE_PRICE_TEAM;
-}
-
 export const SUBSCRIPTION_PLANS: Record<PlanType, SubscriptionPlan> = {
   free: {
     id: 'free',
@@ -57,9 +17,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanType, SubscriptionPlan> = {
     id: 'pro',
     name: 'Pro',
     price: 5,
-    get priceId() {
-      return getStripePricePro();
-    },
+    priceId: process.env.STRIPE_PRICE_PRO || 'price_pro_monthly',
     features: [
       'Unlimited bookmarks',
       'Unlimited collections',
@@ -77,9 +35,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanType, SubscriptionPlan> = {
     id: 'team',
     name: 'Team',
     price: 15,
-    get priceId() {
-      return getStripePriceTeam();
-    },
+    priceId: process.env.STRIPE_PRICE_TEAM || 'price_team_monthly',
     features: [
       'Everything in Pro',
       'Team management',
@@ -101,22 +57,10 @@ export function getPlan(planId: PlanType): SubscriptionPlan {
 }
 
 export function getPlanByPriceId(priceId: string): SubscriptionPlan | null {
-  for (const plan of Object.values(SUBSCRIPTION_PLANS)) {
-    try {
-      // Accessing plan.priceId might trigger lazy getters that throw if env variables are missing
-      if (plan.priceId === priceId) {
-        return plan;
-      }
-    } catch (error) {
-      // Log configuration errors for troubleshooting
-      const planName = plan.name || plan.id || 'unknown';
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.warn(`[getPlanByPriceId] Skipping plan "${planName}" due to configuration error: ${errorMessage}`);
-      // Skip plans where the priceId getter fails (e.g. missing environment variables)
-      continue;
-    }
-  }
-  return null;
+  const plan = Object.values(SUBSCRIPTION_PLANS).find(
+    (plan) => plan.priceId === priceId
+  );
+  return plan || null;
 }
 
 export function isProOrHigher(currentPlan: PlanType): boolean {
@@ -133,5 +77,5 @@ export function hasUnlimited(limit: number): boolean {
 
 export function formatLimit(limit: number): string {
   if (limit === -1) return 'Unlimited';
-  return limit.toLocaleString('en-US');
+  return limit.toLocaleString();
 }

@@ -1,119 +1,110 @@
-import { getServerLogger } from "./logger";
-import { createHash } from "crypto";
+'use server';
 
-export interface LogErrorOptions {
-  message?: string;
-  context?: Record<string, unknown>;
-  level?: "error" | "warn" | "info";
-}
+import type { LogLevel } from '@/types/logging';
+import { Logger, createLogger } from './logger';
+import { LokiTransport, createLokiTransport } from './loki-transport';
+import { ConsoleTransport, createConsoleTransport } from './log-transport';
 
-export async function logError(error: unknown, options: LogErrorOptions = {}): Promise<void> {
-  const logger = getServerLogger();
+let serverLogger: Logger | null = null;
 
-  let errorMessage: string;
-  let errorStack: string | undefined;
-
-  if (error instanceof Error) {
-    errorMessage = options.message || error.message;
-    errorStack = error.stack;
-  } else {
-    errorMessage = options.message || String(error);
-    errorStack = undefined;
-  }
-
-  const level = options.level || "error";
-
-  const logContext: Record<string, unknown> = {
-    ...options.context,
-    errorType: error instanceof Error ? error.constructor.name : typeof error,
+function getLokiConfig(): {
+  url: string;
+  username?: string;
+  password?: string;
+  tenantId?: string;
+} {
+  return {
+    url: process.env.LOKI_URL || 'http://localhost:3100',
+    username: process.env.LOKI_USERNAME,
+    password: process.env.LOKI_PASSWORD,
+    tenantId: process.env.LOKI_TENANT_ID,
   };
+}
 
-  // Only attach errorStack to logContext when NOT passing the Error object to logger.error
-  // to avoid duplicating the stack trace (logger.error adds its own stack when given an Error)
-  if (errorStack && level !== "error") {
-    logContext.errorStack = errorStack;
+function createServerLogger(): Logger {
+  const level = (process.env.LOG_LEVEL as LogLevel) || 'INFO';
+  const transports = [];
+
+  const consoleTransport = createConsoleTransport(
+    process.env.NODE_ENV === 'production' ? 'json' : 'human'
+  );
+  transports.push(consoleTransport);
+
+  const lokiConfig = getLokiConfig();
+  if (lokiConfig.url && lokiConfig.url !== 'http://localhost:3100') {
+    const lokiTransport = createLokiTransport(lokiConfig);
+    transports.push(lokiTransport);
   }
 
-  switch (level) {
-    case "error":
-      await logger.error(
-        errorMessage,
-        error instanceof Error ? error : undefined,
-        logContext,
-      );
-      break;
-    case "warn":
-      await logger.warn(errorMessage, logContext);
-      break;
-    case "info":
-      await logger.info(errorMessage, logContext);
-      break;
+  const logger = createLogger({
+    level,
+    service: 'mimebookmark-server',
+    transports,
+  });
+
+  return logger;
+}
+
+export async function getServerLogger(): Promise<Logger> {
+  if (!serverLogger) {
+    serverLogger = createServerLogger();
   }
+  return serverLogger;
 }
 
-export async function logApiError(
-  error: unknown,
-  requestPath: string,
-  statusCode?: number,
+export async function logRequest(
+  method: string,
+  path: string,
+  statusCode: number,
+  duration: number,
+  userId?: string
 ): Promise<void> {
-  await logError(error, {
-    context: {
-      requestPath,
-      statusCode,
-      source: "api",
-    },
+  const logger = await getServerLogger();
+
+  const level = statusCode >= 500 ? 'ERROR' : statusCode >= 400 ? 'WARN' : 'INFO';
+
+  await logger.log(level, `${method} ${path} ${statusCode}`, {
+    method,
+    path,
+    statusCode,
+    duration,
+    userId,
   });
 }
 
-export async function logDatabaseError(
-  error: unknown,
-  operation: string,
-  tableName?: string,
+export async function logError(
+  error: Error | unknown,
+  context?: Record<string, unknown>
 ): Promise<void> {
-  await logError(error, {
-    context: {
-      operation,
-      tableName,
-      source: "database",
-    },
-  });
+  const logger = await getServerLogger();
+  await logger.error(String(error), context);
 }
 
-export async function logAuthenticationError(
-  error: unknown,
-  userId?: string,
-  method?: string,
-): Promise<void> {
-  const displayUserId =
-    userId && process.env.LOG_RAW_USER_IDS === "true"
-      ? userId
-      : userId
-        ? anonymize(userId)
-        : undefined;
-
-  await logError(error, {
-    context: {
-      userId: displayUserId,
-      method,
-      source: "authentication",
-    },
-  });
-}
-
-/**
- * Anonymizes a string using SHA-256 hash.
- */
-function anonymize(input: string): string {
-  return createHash("sha256").update(input).digest("hex").slice(0, 12);
-}
-
-export async function logSecurityEvent(
+export async function logInfo(
   message: string,
-  context?: Record<string, unknown>,
+  context?: Record<string, unknown>
 ): Promise<void> {
-  const logger = getServerLogger();
-  await logger.warn(message, {
-    ...context,
-    securityEvent: true,
-  });
+  const logger = await getServerLogger();
+  await logger.info(message, context);
+}
+
+export async function logDebug(
+  message: string,
+  context?: Record<string, unknown>
+): Promise<void> {
+  const logger = await getServerLogger();
+  await logger.debug(message, context);
+}
+
+export async function flushLogs(): Promise<void> {
+  if (serverLogger) {
+    await serverLogger.flush();
+  }
+}
+
+export async function closeLogs(): Promise<void> {
+  if (serverLogger) {
+    await serverLogger.close();
+    serverLogger = null;
+  }
 }

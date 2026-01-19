@@ -1,45 +1,72 @@
-export interface LogEntry {
-  level: "debug" | "info" | "warn" | "error";
-  message: string;
-  timestamp: string;
-  service?: string;
-  context?: Record<string, unknown>;
-}
+import type { LogEntry, LogTransport } from '@/types/logging';
 
-export interface LogTransport {
-  name: string;
-  log(entry: LogEntry): Promise<void> | void;
-}
+export { LogTransport };
 
 export class ConsoleTransport implements LogTransport {
-  public name = "console";
+  name = 'console';
 
-  private format(entry: LogEntry): string {
-    const timestamp = new Date(entry.timestamp).toISOString();
-    const level = entry.level.toUpperCase().padEnd(5);
-    const service = entry.service ? `[${entry.service}]` : "";
-    const context = entry.context ? ` ${JSON.stringify(entry.context)}` : "";
-    return `${timestamp} ${level} ${service} ${entry.message}${context}`;
+  private format: 'json' | 'human';
+  private colors: boolean;
+
+  constructor(format: 'json' | 'human' = 'human', colors = true) {
+    this.format = format;
+    this.colors = colors && process.stdout.isTTY;
   }
 
-  constructor() {}
+  log(entry: LogEntry): void {
+    const formatted = this.formatEntry(entry);
+    this.writeToConsole(entry.level, formatted);
+  }
 
-  public log(entry: LogEntry): void {
-    const formatted = this.format(entry);
+  private formatEntry(entry: LogEntry): string {
+    if (this.format === 'json') {
+      return JSON.stringify(entry);
+    }
 
-    switch (entry.level) {
-      case "debug":
-        console.debug(formatted);
-        break;
-      case "info":
-        console.info(formatted);
-        break;
-      case "warn":
-        console.warn(formatted);
-        break;
-      case "error":
-        console.error(formatted);
-        break;
+    const { timestamp, level, message, service } = entry;
+    const contextStr = entry.context
+      ? ` ${JSON.stringify(entry.context)}`
+      : '';
+
+    const levelColors: Record<string, string> = {
+      ERROR: '\x1b[31m',
+      WARN: '\x1b[33m',
+      INFO: '\x1b[36m',
+      DEBUG: '\x1b[90m',
+      TRACE: '\x1b[37m',
+    };
+
+    const reset = '\x1b[0m';
+    const color = this.colors ? levelColors[entry.level] || '' : '';
+
+    return `${color}[${timestamp}] [${level}] [${service}] ${message}${contextStr}${reset}`;
+  }
+
+  private writeToConsole(level: string, message: string): void {
+    if (level === 'ERROR') {
+      console.error(message);
+    } else if (level === 'WARN') {
+      console.warn(message);
+    } else {
+      console.log(message);
     }
   }
+}
+
+export class NoopTransport implements LogTransport {
+  name = 'noop';
+
+  log(_entry: LogEntry): void {
+    // No-op transport - discards all logs
+  }
+}
+
+export function createConsoleTransport(
+  format: 'json' | 'human' = 'human'
+): ConsoleTransport {
+  return new ConsoleTransport(format);
+}
+
+export function createNoopTransport(): NoopTransport {
+  return new NoopTransport();
 }

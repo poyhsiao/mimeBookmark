@@ -1,98 +1,137 @@
-import { useMemo } from "react";
-import { useSubscription } from "./use-subscription";
-import type { PlanType } from "@/types/subscription";
+'use client';
 
-// Define tier order for comparison (lower index = lower tier)
-const TIER_ORDER: Record<PlanType, number> = {
-  free: 0,
-  pro: 1,
-  team: 2,
-};
-
-// Get the app URL with proper fallback to ensure consistent SSR/client behavior
-// Returns a deterministic value regardless of environment
-function getAppUrl(): string {
-  // Prefer environment variable
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    return process.env.NEXT_PUBLIC_APP_URL;
-  }
-  // Fallback to empty string - upgradeUrl will use relative path when appUrl is empty
-  return '';
-}
+import { useAuth } from '@/hooks/use-auth';
+import { useSubscription } from './use-subscription';
+import type { PlanType } from '@/types/subscription';
 
 interface UsePremiumFeatureOptions {
-  requiredTier: PlanType;
+  requiredTier?: PlanType;
+  featureKey?: string;
+  showUpgradePrompt?: boolean;
 }
 
-export function usePremiumFeature({ requiredTier }: UsePremiumFeatureOptions): {
+interface UsePremiumFeatureResult {
   isAllowed: boolean;
-  userTier: PlanType;
   isLoading: boolean;
-  upgradeUrl: string;
-} {
-  const { subscriptionTier, subscription, isLoading } = useSubscription();
-
-  // Memoize appUrl to ensure stable value across renders
-  const appUrl = useMemo(() => getAppUrl(), []);
-
-  return useMemo(() => {
-    // Use subscriptionTier from profile as primary source, fallback to subscription?.tier
-    const userTier: PlanType = subscriptionTier || subscription?.tier || "free";
-
-    const userTierLevel = TIER_ORDER[userTier];
-    const requiredTierLevel = TIER_ORDER[requiredTier];
-    const isAllowed = userTierLevel >= requiredTierLevel;
-
-    // Use appUrl directly - when empty, upgradeUrl will be a relative path
-    const upgradeUrl = appUrl
-      ? `${appUrl}/settings/billing?upgrade=${requiredTier}`
-      : `/settings/billing?upgrade=${requiredTier}`;
-
-    return {
-      isAllowed,
-      userTier,
-      isLoading,
-      upgradeUrl,
-    };
-  }, [subscriptionTier, subscription, requiredTier, isLoading, appUrl]);
+  error: Error | null;
+  upgrade: () => void;
+  remaining?: {
+    bookmarks: number;
+    collections: number;
+    tags: number;
+  };
 }
 
-// Hook specifically for checking if user has at least Pro tier
-export function useIsPro(): {
-  isPro: boolean;
-  userTier: PlanType;
-  isLoading: boolean;
-} {
-  const { subscriptionTier, subscription, isLoading } = useSubscription();
+export function usePremiumFeature(
+  options: UsePremiumFeatureOptions = {}
+): UsePremiumFeatureResult {
+  const {
+    requiredTier = 'pro',
+    featureKey,
+    showUpgradePrompt = true,
+  } = options;
 
-  return useMemo(() => {
-    const userTier: PlanType = subscriptionTier || subscription?.tier || "free";
-    const isPro = TIER_ORDER[userTier] >= TIER_ORDER.pro;
+  const { user, isLoading: authLoading } = useAuth();
+  const {
+    subscription,
+    limits,
+    usage,
+    isLoading: subLoading,
+    error,
+    openCheckout,
+  } = useSubscription();
 
-    return {
-      isPro,
-      userTier,
-      isLoading,
-    };
-  }, [subscriptionTier, subscription, isLoading]);
+  const isLoading = authLoading || subLoading;
+
+  const tierOrder: Record<PlanType, number> = {
+    free: 0,
+    pro: 1,
+    team: 2,
+  };
+
+  const userTier = subscription?.tier || 'free';
+  const isAllowed = tierOrder[userTier] >= tierOrder[requiredTier];
+
+  const calculateRemaining = () => {
+    if (userTier === 'free') {
+      const remainingBookmarks = (limits.bookmarks || 500) - (usage.bookmarks || 0);
+      const remainingCollections = (limits.collections || 10) - (usage.collections || 0);
+      const remainingTags = (limits.tags || 50) - (usage.tags || 0);
+
+      return {
+        bookmarks: Math.max(0, remainingBookmarks),
+        collections: Math.max(0, remainingCollections),
+        tags: Math.max(0, remainingTags),
+      };
+    }
+    return undefined;
+  };
+
+  const upgrade = () => {
+    if (showUpgradePrompt && user) {
+      openCheckout(requiredTier);
+    }
+  };
+
+  return {
+    isAllowed,
+    isLoading,
+    error,
+    upgrade,
+    remaining: calculateRemaining(),
+  };
 }
 
-// Hook specifically for checking if user has Team tier
-export function useIsTeam(): {
-  isTeam: boolean;
-  userTier: PlanType;
-  isLoading: boolean;
+export function useFeatureLimit(): {
+  canAddBookmark: boolean;
+  canAddCollection: boolean;
+  canAddTag: boolean;
+  bookmarkRemaining: number;
+  collectionRemaining: number;
+  tagRemaining: number;
+  isAtLimit: boolean;
 } {
-  const { subscriptionTier, subscription, isLoading } = useSubscription();
+  const { user, isLoading: authLoading } = useAuth();
+  const {
+    subscription,
+    limits,
+    usage,
+    isLoading: subLoading,
+  } = useSubscription();
 
-  return useMemo(() => {
-    const userTier: PlanType = subscriptionTier || subscription?.tier || "free";
-    const isTeam = userTier === "team";
+  const isLoading = authLoading || subLoading;
 
+  const tier = subscription?.tier || 'free';
+  const effectiveLimits = tier === 'free' ? limits : null;
+
+  if (isLoading || !effectiveLimits) {
     return {
-      isTeam,
-      userTier,
-      isLoading,
+      canAddBookmark: true,
+      canAddCollection: true,
+      canAddTag: true,
+      bookmarkRemaining: -1,
+      collectionRemaining: -1,
+      tagRemaining: -1,
+      isAtLimit: false,
     };
-  }, [subscriptionTier, subscription, isLoading]);
+  }
+
+  const bookmarkRemaining = effectiveLimits.bookmarks - (usage.bookmarks || 0);
+  const collectionRemaining = effectiveLimits.collections - (usage.collections || 0);
+  const tagRemaining = effectiveLimits.tags - (usage.tags || 0);
+
+  const canAddBookmark = bookmarkRemaining > 0;
+  const canAddCollection = collectionRemaining > 0;
+  const canAddTag = tagRemaining > 0;
+  const isAtLimit = !canAddBookmark || !canAddCollection || !canAddTag;
+
+  return {
+    canAddBookmark,
+    canAddCollection,
+    canAddTag,
+    bookmarkRemaining: Math.max(0, bookmarkRemaining),
+    collectionRemaining: Math.max(0, collectionRemaining),
+    tagRemaining: Math.max(0, tagRemaining),
+    isAtLimit,
+  };
 }

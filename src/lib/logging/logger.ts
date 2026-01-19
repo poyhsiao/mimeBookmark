@@ -1,166 +1,196 @@
-import { LogEntry, LogTransport, ConsoleTransport } from "./log-transport";
-import { LokiTransport } from "./loki-transport";
+import type { LogEntry, LogLevel, LoggerOptions, LogTransport } from '@/types/logging';
+import { isLevelEnabled, LOG_LEVELS } from '@/types/logging';
 
-export interface LoggerOptions {
-  service?: string;
-  transports?: LogTransport[];
-  lokiUrl?: string;
-  environment?: "development" | "production" | "test";
-}
+class Logger {
+  private options: LoggerOptions;
+  private initialized = false;
 
-export class Logger {
-  protected service: string;
-  protected transports: LogTransport[];
-  protected environment: string;
-  protected context: Record<string, unknown>;
-
-  constructor(
-    options: LoggerOptions & {
-      _internalContext?: Record<string, unknown>;
-    } = {},
-  ) {
-    this.service = options.service || "mimebookmark";
-    this.environment = this.validateNodeEnv(
-      options.environment || process.env.NODE_ENV,
-    );
-    this.context = options._internalContext || {};
-    this.transports = options.transports ? [...options.transports] : [];
-
-    if (!this.transports.find((t) => t.name === "console")) {
-      this.transports.push(new ConsoleTransport());
-    }
-
-    const lokiUrl = options.lokiUrl || process.env.LOKI_URL;
-    if (lokiUrl && !this.transports.find((t) => t.name === "loki")) {
-      this.transports.push(
-        new LokiTransport({ lokiUrl, service: this.service }),
-      );
-    }
-  }
-
-  /**
-   * Validates the node environment and returns a safe default if invalid.
-   */
-  private validateNodeEnv(
-    env: string | undefined,
-  ): "development" | "production" | "test" {
-    const validEnvs = ["development", "production", "test"] as const;
-    if (env && (validEnvs as readonly string[]).includes(env)) {
-      return env as "development" | "production" | "test";
-    }
-    return "development";
-  }
-
-  private createEntry(
-    level: LogEntry["level"],
-    message: string,
-    context?: Record<string, unknown>,
-  ): LogEntry {
-    return {
-      level,
-      message,
-      timestamp: new Date().toISOString(),
-      service: this.service,
-      context: { ...this.context, ...context },
+  constructor(options: Partial<LoggerOptions> = {}) {
+    this.options = {
+      level: options.level || 'INFO',
+      service: options.service || 'mimebookmark',
+      transports: options.transports || [],
+      environment: options.environment || process.env.NODE_ENV || 'development',
+      version: options.version || process.env.npm_package_version || '1.0.0',
     };
   }
 
+  init(): void {
+    if (this.initialized) return;
+    this.initialized = true;
+  }
+
+  private shouldLog(level: LogLevel): boolean {
+    return isLevelEnabled(this.options.level, level);
+  }
+
+  private createEntry(
+    level: LogLevel,
+    message: string,
+    context?: Record<string, unknown>
+  ): LogEntry {
+    const entry: LogEntry = {
+      timestamp: new Date().toISOString(),
+      level,
+      message,
+      service: this.options.service,
+      context: {
+        ...context,
+        environment: this.options.environment,
+        version: this.options.version,
+      },
+    };
+
+    return entry;
+  }
+
   private async writeToTransports(entry: LogEntry): Promise<void> {
-    const transportPromises = this.transports.map(async (transport) => {
+    const writePromises = this.options.transports.map((transport) => {
       try {
         const result = transport.log(entry);
-        if (result instanceof Promise) {
-          await Promise.resolve(result).catch((err) => {
-            console.error(`Log transport "${transport.name}" failed:`, err);
-          });
-        }
-      } catch (err) {
-        console.error(`Log transport "${transport.name}" failed:`, err);
+        return result instanceof Promise ? result : Promise.resolve();
+      } catch (error) {
+        console.error(`Log transport "${transport.name}" failed:`, error);
+        return Promise.resolve();
       }
     });
 
-    await Promise.all(transportPromises);
+    await Promise.all(writePromises);
   }
 
-  public async debug(
+  async log(
+    level: LogLevel,
     message: string,
-    context?: Record<string, unknown>,
+    context?: Record<string, unknown>
   ): Promise<void> {
-    const entry = this.createEntry("debug", message, context);
-    await this.writeToTransports(entry);
+    if (!this.shouldLog(level)) return;
+
+    const entry = this.createEntry(level, message, context);
+
+    if (this.options.transports.length > 0) {
+      await this.writeToTransports(entry);
+    }
+
+    const formattedEntry = this.formatForConsole(entry);
+    this.writeToConsole(level, formattedEntry);
   }
 
-  public async info(
-    message: string,
-    context?: Record<string, unknown>,
-  ): Promise<void> {
-    const entry = this.createEntry("info", message, context);
-    await this.writeToTransports(entry);
+  private formatForConsole(entry: LogEntry): string {
+    const { timestamp, level, message, service } = entry;
+    const contextStr = entry.context
+      ? ` ${JSON.stringify(entry.context)}`
+      : '';
+    return `[${timestamp}] [${level}] [${service}] ${message}${contextStr}`;
   }
 
-  public async warn(
-    message: string,
-    context?: Record<string, unknown>,
-  ): Promise<void> {
-    const entry = this.createEntry("warn", message, context);
-    await this.writeToTransports(entry);
-  }
-
-  public async error(
-    message: string,
-    error?: Error,
-    context?: Record<string, unknown>,
-  ): Promise<void> {
-    const errorContext = error
-      ? {
-          ...(context || {}),
-          errorMessage: error.message,
-          errorStack: error.stack,
-        }
-      : context || {};
-
-    const entry = this.createEntry("error", message, errorContext);
-    await this.writeToTransports(entry);
-  }
-
-  public addTransport(transport: LogTransport): void {
-    if (!this.transports.find((t) => t.name === transport.name)) {
-      this.transports.push(transport);
+  private writeToConsole(level: LogLevel, formattedMessage: string): void {
+    switch (level) {
+      case 'ERROR':
+        console.error(formattedMessage);
+        break;
+      case 'WARN':
+        console.warn(formattedMessage);
+        break;
+      case 'INFO':
+      case 'DEBUG':
+      case 'TRACE':
+        console.log(formattedMessage);
+        break;
     }
   }
 
-  public removeTransport(name: string): void {
-    this.transports = this.transports.filter((t) => t.name !== name);
+  error(message: string, context?: Record<string, unknown>): Promise<void> {
+    return this.log('ERROR', message, context);
   }
 
-  public createChild(context: Record<string, unknown>): Logger {
-    return new Logger({
-      service: this.service,
-      transports: [...this.transports],
-      environment: this.environment as any,
-      _internalContext: { ...this.context, ...context },
-    });
+  warn(message: string, context?: Record<string, unknown>): Promise<void> {
+    return this.log('WARN', message, context);
   }
-}
 
-// Singleton instance for server-side logging
-let serverLogger: Logger | null = null;
+  info(message: string, context?: Record<string, unknown>): Promise<void> {
+    return this.log('INFO', message, context);
+  }
 
-export function resetServerLogger(): void {
-  serverLogger = null;
-}
+  debug(message: string, context?: Record<string, unknown>): Promise<void> {
+    return this.log('DEBUG', message, context);
+  }
 
-export function getServerLogger(options?: LoggerOptions): Logger {
-  if (serverLogger && options) {
-    throw new Error(
-      "Server logger already exists. Use resetServerLogger() to re-initialize with new options.",
+  trace(message: string, context?: Record<string, unknown>): Promise<void> {
+    return this.log('TRACE', message, context);
+  }
+
+  async flush(): Promise<void> {
+    const flushPromises = this.options.transports
+      .filter((transport) => typeof transport.flush === 'function')
+      .map(async (transport) => {
+        try {
+          await transport.flush?.();
+        } catch (error) {
+          console.error(
+            `Log transport "${transport.name}" flush failed:`,
+            error
+          );
+        }
+      });
+
+    await Promise.all(flushPromises);
+  }
+
+  async close(): Promise<void> {
+    const closePromises = this.options.transports
+      .filter((transport) => typeof transport.close === 'function')
+      .map(async (transport) => {
+        try {
+          await transport.close?.();
+        } catch (error) {
+          console.error(
+            `Log transport "${transport.name}" close failed:`,
+            error
+          );
+        }
+      });
+
+    await Promise.all(closePromises);
+  }
+
+  setLevel(level: LogLevel): void {
+    this.options.level = level;
+  }
+
+  addTransport(transport: LogTransport): void {
+    this.options.transports.push(transport);
+  }
+
+  removeTransport(name: string): void {
+    this.options.transports = this.options.transports.filter(
+      (t) => t.name !== name
     );
   }
-  if (!serverLogger) {
-    serverLogger = new Logger({
-      service: "mimebookmark-server",
-      ...options,
-    });
+
+  getLevel(): LogLevel {
+    return this.options.level;
   }
-  return serverLogger;
+
+  getService(): string {
+    return this.options.service;
+  }
 }
+
+let globalLogger: Logger | null = null;
+
+export function getLogger(): Logger {
+  if (!globalLogger) {
+    globalLogger = new Logger();
+    globalLogger.init();
+  }
+  return globalLogger;
+}
+
+export function createLogger(options: Partial<LoggerOptions>): Logger {
+  const logger = new Logger(options);
+  logger.init();
+  return logger;
+}
+
+export { Logger };
+export default Logger;

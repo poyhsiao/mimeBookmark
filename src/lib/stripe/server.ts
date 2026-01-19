@@ -1,29 +1,16 @@
 import Stripe from 'stripe';
-import { createHash } from 'crypto';
 
-let stripeInstance: Stripe | null = null;
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
-export const getStripeClient = () => {
-  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-  if (!stripeSecretKey) {
-    throw new Error(
-      'Missing STRIPE_SECRET_KEY environment variable. Please set STRIPE_SECRET_KEY in your environment.'
-    );
-  }
-  if (!stripeInstance) {
-    stripeInstance = new Stripe(stripeSecretKey, {
-      apiVersion: '2025-12-15.clover',
-      typescript: true,
-    });
-  }
-  return stripeInstance;
-};
+if (!stripeSecretKey) {
+  throw new Error(
+    'Missing STRIPE_SECRET_KEY environment variable. Please set STRIPE_SECRET_KEY in your environment.'
+  );
+}
 
-// Use a proxy or a getter for existing property access
-export const stripe = new Proxy({} as Stripe, {
-  get(_, prop) {
-    return (getStripeClient() as any)[prop];
-  }
+export const stripe = new Stripe(stripeSecretKey, {
+  apiVersion: '2025-05-28.basil' as any,
+  typescript: true,
 });
 
 export function getStripeSecretKey(): string {
@@ -51,11 +38,11 @@ export async function createCheckoutSession(
     mode?: 'payment' | 'subscription' | 'setup';
     customerEmail?: string;
     metadata?: Record<string, string>;
-    clientReferenceId?: string;
   }
 ): Promise<Stripe.Checkout.Session> {
   const session = await stripe.checkout.sessions.create({
     mode: params.mode || 'subscription',
+    payment_method_types: ['card'],
     line_items: [
       {
         price: params.priceId,
@@ -66,14 +53,11 @@ export async function createCheckoutSession(
     customer_email: params.customerId ? undefined : params.customerEmail,
     success_url: params.successUrl,
     cancel_url: params.cancelUrl,
-    client_reference_id: params.clientReferenceId,
     metadata: params.metadata,
-    ...(params.mode === 'subscription' || !params.mode ? {
-      subscription_data: {
-        metadata: params.metadata,
-      },
-    } : {}),
-  } as any);
+    subscription_data: {
+      metadata: params.metadata,
+    },
+  });
 
   return session;
 }
@@ -106,57 +90,13 @@ export async function createOrRetrieveCustomer(
     return existingCustomers.data[0];
   }
 
-  // Use email-based idempotency key to ensure exactly-once customer creation.
-  // Note: Stripe returns the original response for repeated requests with the same
-  // idempotency key and does NOT apply new name/metadata from subsequent calls.
-  // If the customer already exists, we update it with the new parameters.
-  //
-  // LIMITATION: This permanent idempotency key (based only on email) prevents
-  // recreating a customer if one was deleted. To support recreation after deletion,
-  // consider adding a variable component (timestamp, UUID, or deletion token) to
-  // the idempotency key generation.
-  const idempotencyKey = createHash('sha256').update(email).digest('hex');
+  const customer = await stripe.customers.create({
+    email,
+    name: params?.name,
+    metadata: params?.metadata,
+  });
 
-  try {
-    const customer = await stripe.customers.create(
-      {
-        email,
-        name: params?.name,
-        metadata: params?.metadata,
-      },
-      { idempotencyKey }
-    );
-    return customer;
-  } catch (error: any) {
-    // Only handle concurrent creation conflicts, rethrow all other errors
-    const isIdempotencyError = error?.type === 'idempotency_error';
-    const isResourceAlreadyExistsConflict =
-      error?.statusCode === 409 || error?.code === 'resource_already_exists';
-
-    if (!isIdempotencyError && !isResourceAlreadyExistsConflict) {
-      // Network errors, rate limits, auth failures, etc. should be rethrown
-      throw error;
-    }
-
-    // If concurrent creation occurred, try to find the customer again
-    const fallbackList = await stripe.customers.list({
-      email,
-      limit: 1,
-    });
-    if (fallbackList.data.length > 0) {
-      const existingCustomer = fallbackList.data[0];
-      // Update the customer with new parameters if provided
-      if (params?.name || params?.metadata) {
-        const updated = await stripe.customers.update(existingCustomer.id, {
-          ...(params.name && { name: params.name }),
-          ...(params.metadata && { metadata: params.metadata }),
-        });
-        return updated;
-      }
-      return existingCustomer;
-    }
-    throw error;
-  }
+  return customer;
 }
 
 export async function getCustomer(customerId: string): Promise<Stripe.Customer | null> {
@@ -166,12 +106,8 @@ export async function getCustomer(customerId: string): Promise<Stripe.Customer |
       return null;
     }
     return customer as Stripe.Customer;
-  } catch (err: any) {
-    if (err?.statusCode === 404 || err?.code === 'resource_missing') {
-      return null;
-    }
-    console.error('Failed to retrieve Stripe customer:', err);
-    throw err;
+  } catch {
+    return null;
   }
 }
 
@@ -194,25 +130,10 @@ export async function updateSubscription(
     quantity?: number;
   }
 ): Promise<Stripe.Subscription> {
-  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-
-  if (!subscription.items?.data || subscription.items.data.length === 0) {
-    throw new Error(`Subscription ${subscriptionId} has no items`);
-  }
-
-  // Validate that this is a single-item subscription
-  if (subscription.items.data.length > 1) {
-    throw new Error(
-      `updateSubscription only supports single-item subscriptions. ` +
-      `Subscription ${subscriptionId} has ${subscription.items.data.length} items. ` +
-      `Supporting multi-item updates would require mapping params to each item and handling proration_behavior per item.`
-    );
-  }
-
   return await stripe.subscriptions.update(subscriptionId, {
     items: [
       {
-        id: subscription.items.data[0].id,
+        id: (await stripe.subscriptions.retrieve(subscriptionId)).items.data[0].id,
         price: params.priceId,
         quantity: params.quantity,
       },
