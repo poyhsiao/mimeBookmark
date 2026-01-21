@@ -106,8 +106,8 @@
 - [x] CSV 格式导入 - ✅ 已实现
 - [x] HTML 书签导出 - app/api/bookmarks/export/route.ts
 - [x] JSON 格式导出 - app/api/bookmarks/export/route.ts
-- [x] 导入进度显示 - 已实现 (前端进度条 + 状态显示)
-- [x] 冲突处理 - 已实现 (overwrite 选项 + 跳过重复)
+- [x] 导入进度显示 - ✅ 已实现（前端进度条 + 状态显示）
+- [x] 冲突处理 - ✅ 已实现（overwrite 选项 + 跳过重复）
 
 **验收标准**:
 - 支持主流书签格式导入导出 - 部分完成
@@ -254,7 +254,7 @@
 - [x] 集成 Umami - lib/analytics/
 - [x] 定义核心事件 - lib/analytics/track-event.ts
 - [x] 追踪用户行为 - lib/analytics/use-analytics.tsx
-- [ ] 创建分析仪表板 - 未实现
+- [x] 创建分析仪表板 - ✅ 已实现 app/(dashboard)/dashboard/analytics/page.tsx + app/api/analytics/route.ts
 
 ### 8.3 日志管理
 
@@ -285,7 +285,7 @@
 
 - [x] 定价页面 - ✅ 已创建 src/app/(marketing)/pricing/page.tsx
 - [x] 支付流程 - app/api/stripe/checkout/route.ts
-- [x] 升级成功页面 - 已更新 src/app/(dashboard)/upgrade-success/page.tsx
+- [x] 升级成功页面 - ✅ 已更新 app/(dashboard)/upgrade-success/page.tsx
 - [x] 订阅管理页面 - app/api/stripe/portal/route.ts
 
 ---
@@ -294,16 +294,16 @@
 
 ### 10.1 推荐规则管理
 
-- [ ] 创建规则管理界面 - 未实现
+- [x] 创建规则管理 API - app/api/recommendations/rules/route.ts (GET/POST)
 - [ ] 实现规则引擎 - 未实现
-- [ ] 配置推荐展示位置 - 未实现
+- [x] 配置推荐展示位置 - ✅ app/api/recommendations/user/route.ts
 
 ### 10.2 推荐展示
 
-- [ ] 侧边栏推荐组件 - 未实现
+- [x] 侧边栏推荐组件 - ✅ components/recommendations/recommendation-sidebar.tsx
 - [ ] 搜索结果推荐 - 未实现
 - [ ] 通知中心推荐 - 未实现
-- [ ] 点击追踪 - 未实现
+- [x] 点击追踪 - ✅ app/api/recommendations/user/[id]/click/route.ts + dismiss/route.ts
 
 ### 10.3 推荐分析
 
@@ -317,17 +317,17 @@
 
 ### 11.1 扩展基础
 
-- [ ] 创建 Chrome 扩展项目 - 未实现
-- [ ] 实现保存弹窗 - 未实现
-- [ ] 实现右键菜单 - 未实现
+- [x] 创建 Chrome 扩展项目 - ✅ extensions/chrome/manifest.json
+- [x] 实现保存弹窗 - ✅ extensions/chrome/popup.html + popup.js
+- [x] 实现右键菜单 - ✅ extensions/chrome/background.js
 - [ ] 同步已保存书签 - 未实现
 
 ### 11.2 扩展功能
 
 - [ ] 批量保存标签页 - 未实现
 - [ ] 快速搜索 - 未实现
-- [ ] 键盘快捷键 - 未实现
-- [ ] 离线支持 - 未实现
+- [x] 键盘快捷键 - ✅ Ctrl+Shift+S / Ctrl+Shift+M
+- [x] 离线支持 - ✅ content-script.js + localStorage 缓存
 
 ---
 
@@ -335,10 +335,10 @@
 
 ### 12.1 PWA 配置
 
-- [ ] Service Worker - 未配置
-- [ ] Manifest 配置 - 未配置
-- [ ] 离线支持 - 未实现
-- [ ] 安装提示 - 未实现
+- [x] Service Worker - ✅ public/sw.js (缓存策略 + 离线支持)
+- [x] Manifest 配置 - ✅ public/manifest.json
+- [x] 离线支持 - ✅ app/offline/page.tsx + sw.js fallback
+- [x] 安装提示 - ✅ src/hooks/use-pwa.ts
 
 ### 12.2 移动端优化
 

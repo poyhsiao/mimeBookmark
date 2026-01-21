@@ -25,7 +25,7 @@ async function getArchivedBookmark(supabase: Awaited<ReturnType<typeof createCli
 // POST /api/bookmarks/[id]/unarchive - Unarchive a bookmark
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -34,7 +34,7 @@ export async function POST(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { id } = params;
+  const { id } = await params;
 
   try {
     const bookmark = await getArchivedBookmark(supabase, id, user.id);

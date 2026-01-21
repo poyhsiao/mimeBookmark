@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Save to MimeBookmark</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      width: 360px;
+      min-height: 400px;
+      background: #fff;
+      color: #1a1a1a;
+    }
+
+    .header {
+      padding: 16px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .header p {
+      font-size: 12px;
+      opacity: 0.9;
+    }
+
+    .content {
+      padding: 16px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: #666;
+      margin-bottom: 6px;
+    }
+
+    input[type="text"],
+    textarea,
+    select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input[type="text"]:focus,
+    textarea:focus,
+    select:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 60px;
+    }
+
+    .tags-input-container {
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-height: 42px;
+      align-items: center;
+    }
+
+    .tags-input-container:focus-within {
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .tag {
+      background: #f0f4ff;
+      color: #667eea;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .tag button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #667eea;
+      font-size: 14px;
+      line-height: 1;
+      padding: 0;
+    }
+
+    .tags-input {
+      border: none;
+      flex: 1;
+      min-width: 80px;
+      padding: 4px;
+      font-size: 14px;
+    }
+
+    .tags-input:focus {
+      outline: none;
+      box-shadow: none;
+    }
+
+    .collection-select {
+      position: relative;
+    }
+
+    .collection-select select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 20px;
+    }
+
+    button {
+      flex: 1;
+      padding: 12px 16px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-secondary {
+      background: #f5f5f5;
+      color: #666;
+    }
+
+    .btn-secondary:hover {
+      background: #eee;
+    }
+
+    .status {
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      text-align: center;
+      margin-top: 12px;
+      display: none;
+    }
+
+    .status.success {
+      display: block;
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+
+    .status.error {
+      display: block;
+      background: #ffebee;
+      color: #c62828;
+    }
+
+    .status.loading {
+      display: block;
+      background: #e3f2fd;
+      color: #1565c0;
+    }
+
+    .login-required {
+      padding: 32px 16px;
+      text-align: center;
+    }
+
+    .login-required .icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 16px;
+      background: #f5f5f5;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .login-required .icon svg {
+      width: 32px;
+      height: 32px;
+      color: #999;
+    }
+
+    .login-required h2 {
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+
+    .login-required p {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 16px;
+    }
+
+    .page-preview {
+      background: #f9fafb;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+
+    .page-preview .title {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 4px;
+      word-break: break-word;
+    }
+
+    .page-preview .url {
+      font-size: 12px;
+      color: #666;
+      word-break: break-all;
+    }
+
+    .quick-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .quick-tag {
+      background: #f0f4ff;
+      border: none;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      color: #667eea;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .quick-tag:hover {
+      background: #667eea;
+      color: white;
+    }
+
+    .divider {
+      height: 1px;
+      background: #e0e0e0;
+      margin: 16px 0;
+    }
+
+    .footer {
+      padding: 12px 16px;
+      background: #f9fafb;
+      border-top: 1px solid #e0e0e0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: #999;
+    }
+
+    .footer a {
+      color: #667eea;
+      text-decoration: none;
+    }
+
+    .add-to-collection {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .add-to-collection input {
+      flex: 1;
+    }
+
+    .add-to-collection button {
+      flex: 0;
+      padding: 10px 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Save to MimeBookmark</h1>
+    <p>Quickly save bookmarks from your browser</p>
+  </div>
+
+  <div class="content" id="app">
+    <div class="login-required" id="loginRequired">
+      <div class="icon">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+      </div>
+      <h2>Sign in Required</h2>
+      <p>Please sign in to MimeBookmark to save bookmarks</p>
+      <button class="btn-primary" id="openSettingsBtn">Open Settings</button>
+    </div>
+
+    <div id="bookmarkForm" style="display: none;">
+      <div class="page-preview">
+        <div class="title" id="pageTitle"></div>
+        <div class="url" id="pageUrl"></div>
+      </div>
+
+      <div class="form-group">
+        <label for="title">Title</label>
+        <input type="text" id="title" placeholder="Enter bookmark title">
+      </div>
+
+      <div class="form-group">
+        <label for="description">Description (optional)</label>
+        <textarea id="description" placeholder="Add a description..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="collection">Collection</label>
+        <div class="collection-select">
+          <select id="collection">
+            <option value="">Loading collections...</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="tagsInput">Tags</label>
+        <div class="tags-input-container" id="tagsContainer">
+          <input type="text" class="tags-input" id="tagsInput" placeholder="Add tags..." aria-label="Tags">
+        </div>
+        <div class="quick-tags" id="quickTags"></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="actions">
+        <button class="btn-secondary" id="cancelBtn">Cancel</button>
+        <button class="btn-primary" id="saveBtn">Save Bookmark</button>
+      </div>
+
+      <div class="status" id="status"></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span id="userInfo"></span>
+    <a href="#" id="openMimeBookmarkLink">Open MimeBookmark</a>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
