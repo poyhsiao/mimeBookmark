@@ -20,12 +20,14 @@
   function extractTitle() {
     const ogTitle = document.querySelector('meta[property="og:title"]');
     if (ogTitle) {
-      return ogTitle.getAttribute('content');
+      const content = (ogTitle.getAttribute('content') || '').trim();
+      if (content) return content;
     }
 
     const twitterTitle = document.querySelector('meta[name="twitter:title"]');
     if (twitterTitle) {
-      return twitterTitle.getAttribute('content');
+      const content = (twitterTitle.getAttribute('content') || '').trim();
+      if (content) return content;
     }
 
     return document.title || '';
@@ -34,17 +36,20 @@
   function extractDescription() {
     const ogDesc = document.querySelector('meta[property="og:description"]');
     if (ogDesc) {
-      return ogDesc.getAttribute('content');
+      const content = (ogDesc.getAttribute('content') || '').trim();
+      if (content) return content;
     }
 
     const twitterDesc = document.querySelector('meta[name="twitter:description"]');
     if (twitterDesc) {
-      return twitterDesc.getAttribute('content');
+      const content = (twitterDesc.getAttribute('content') || '').trim();
+      if (content) return content;
     }
 
     const metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) {
-      return metaDesc.getAttribute('content');
+      const content = (metaDesc.getAttribute('content') || '').trim();
+      if (content) return content;
     }
 
     return '';
@@ -67,9 +72,10 @@
     const twitterImage = document.querySelector('meta[name="twitter:image"]');
     if (twitterImage) {
       const src = twitterImage.getAttribute('content');
-      if (src && !images.find(i => i.src === resolveUrl(src))) {
+      const resolvedSrc = src ? resolveUrl(src) : null;
+      if (resolvedSrc && !images.find(i => i.src === resolvedSrc)) {
         images.push({
-          src: resolveUrl(src),
+          src: resolvedSrc,
           type: 'twitter'
         });
       }
@@ -78,9 +84,10 @@
     const twitterPlayer = document.querySelector('meta[name="twitter:player"]');
     if (twitterPlayer) {
       const src = twitterPlayer.getAttribute('content');
-      if (src && !images.find(i => i.src === resolveUrl(src))) {
+      const resolvedSrc = src ? resolveUrl(src) : null;
+      if (resolvedSrc && !images.find(i => i.src === resolvedSrc)) {
         images.push({
-          src: resolveUrl(src),
+          src: resolvedSrc,
           type: 'player'
         });
       }
@@ -100,9 +107,10 @@
     const linkAppleIcon = document.querySelector('link[rel="apple-touch-icon"]');
     if (linkAppleIcon) {
       const href = linkAppleIcon.getAttribute('href');
-      if (href && !images.find(i => i.src === resolveUrl(href))) {
+      const resolvedHref = href ? resolveUrl(href) : null;
+      if (resolvedHref && !images.find(i => i.src === resolvedHref)) {
         images.push({
-          src: resolveUrl(href),
+          src: resolvedHref,
           type: 'apple-touch-icon'
         });
       }
@@ -547,10 +555,21 @@
     let shouldReextract = false;
 
     for (const mutation of mutations) {
+      if (mutation.type === 'attributes') {
+        const target = mutation.target;
+        if (
+          target.tagName === 'META' &&
+          (target.getAttribute('property') === 'og:title' || target.getAttribute('name') === 'twitter:title') &&
+          mutation.attributeName === 'content'
+        ) {
+          shouldReextract = true;
+          break;
+        }
+      }
       if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
         for (const node of mutation.addedNodes) {
           if (node.nodeType === Node.ELEMENT_NODE) {
-            if (node.tagName === 'META' && node.getAttribute('property') === 'og:title') {
+            if (node.tagName === 'META' && (node.getAttribute('property') === 'og:title' || node.getAttribute('name') === 'twitter:title')) {
               shouldReextract = true;
               break;
             }
@@ -592,7 +611,9 @@
     if (!target) return;
     observer.observe(target, {
       childList: true,
-      subtree: true
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['content', 'property', 'name']
     });
   }
 
