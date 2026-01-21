@@ -180,8 +180,37 @@
       /bilibili\.com\//
     ];
 
-    return videoPatterns.some(pattern => pattern.test(window.location.href)) ||
-           document.querySelector('video') !== null;
+    if (videoPatterns.some(pattern => pattern.test(window.location.href))) {
+      return true;
+    }
+
+    // Check for primary video content with stricter heuristics
+    const videos = document.querySelectorAll('video');
+    for (const video of videos) {
+      // Check if video has significant duration (>30s)
+      if (video.duration > 30) {
+        return true;
+      }
+
+      // Check if video is in main content area
+      const mainContent = document.querySelector('main, article, [role="main"]');
+      if (mainContent && mainContent.contains(video)) {
+        // Check if video takes up significant viewport area
+        const rect = video.getBoundingClientRect();
+        const viewportArea = window.innerWidth * window.innerHeight;
+        const videoArea = rect.width * rect.height;
+        if (videoArea > viewportArea * 0.25) {
+          return true;
+        }
+      }
+
+      // Check if video has visible controls and is not muted/background
+      if (video.controls && !video.muted && video.offsetParent !== null) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   function isImagePage() {
