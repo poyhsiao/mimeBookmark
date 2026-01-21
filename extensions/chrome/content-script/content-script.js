@@ -549,25 +549,6 @@
     appendNodeSafely(button, 'body');
   }
 
-  function init() {
-    const metadata = extractMetadata();
-    storeMetadata(metadata);
-    exposeToBackgroundScript();
-
-    try {
-      chrome.runtime.sendMessage({
-        action: 'metadataReady',
-        metadata
-      });
-    } catch (error) {
-      console.warn('MimeBookmark: Failed to send metadataReady message:', error);
-    }
-
-    if (shouldShowFloatingButton()) {
-      injectFloatingButton();
-    }
-  }
-
   function shouldShowFloatingButton() {
     const excludedDomains = [
       'youtube.com',
