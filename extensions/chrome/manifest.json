@@ -40,7 +40,7 @@
         "default": "Ctrl+Shift+D",
         "mac": "Command+Shift+D"
       },
-      "description": "Save current page to MimeBookmark (Note: Ctrl+Shift+S may conflict with browser's Save Page As)"
+      "description": "Save current page to MimeBookmark (Ctrl+Shift+D)"
     },
     "open-popup": {
       "suggested_key": {

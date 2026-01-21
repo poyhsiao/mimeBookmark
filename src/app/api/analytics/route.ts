@@ -21,32 +21,43 @@ export async function GET(request: Request) {
       .eq('id', user.id)
       .single();
 
-    const isAdmin = profile?.subscription_tier === 'team' || user.user_metadata?.role === 'admin';
+    const isAdmin = profile?.subscription_tier === 'team' || user.app_metadata?.role === 'admin';
 
     if (isAdmin) {
       // SAFETY NOTE: Client-side aggregation with .limit() safety caps
       // TODO: Replace with Supabase RPC functions using SQL GROUP BY for production scale
       const SAFETY_LIMIT = 10000; // Safety cap to prevent OOM
+      let eventsLimitReached = false;
+      let pagesLimitReached = false;
+      let dailyViewsLimitReached = false;
 
       // Get total page views count
-      const { count: totalPageViews } = await supabase
+      const { count: totalPageViews, error: totalPageViewsError } = await supabase
         .from('analytics_events')
         .select('id', { count: 'exact', head: true })
         .eq('event_name', 'page_view')
         .gte('created_at', startDate)
         .lte('created_at', endDate);
 
+      if (totalPageViewsError) {
+        return NextResponse.json({ error: totalPageViewsError.message }, { status: 500 });
+      }
+
       // Get total non-page-view events count
-      const { count: totalEvents } = await supabase
+      const { count: totalEvents, error: totalEventsError } = await supabase
         .from('analytics_events')
         .select('id', { count: 'exact', head: true })
         .neq('event_name', 'page_view')
         .gte('created_at', startDate)
         .lte('created_at', endDate);
 
+      if (totalEventsError) {
+        return NextResponse.json({ error: totalEventsError.message }, { status: 500 });
+      }
+
       // Get unique visitors count (distinct session_ids for page views)
       // Safety cap applied to prevent OOM
-      const { data: uniqueSessionsData } = await supabase
+      const { data: uniqueSessionsData, error: uniqueSessionsError } = await supabase
         .from('analytics_events')
         .select('session_id')
         .eq('event_name', 'page_view')
@@ -54,18 +65,28 @@ export async function GET(request: Request) {
         .lte('created_at', endDate)
         .limit(SAFETY_LIMIT);
 
+      if (uniqueSessionsError) {
+        return NextResponse.json({ error: uniqueSessionsError.message }, { status: 500 });
+      }
+
       const uniqueVisitors = new Set(uniqueSessionsData?.map(e => e.session_id) || []).size;
       const sessionLimitReached = (uniqueSessionsData?.length || 0) >= SAFETY_LIMIT;
 
       // Get top events (aggregated by event_name, excluding page_view)
       // Safety cap applied to prevent OOM
-      const { data: eventAggData } = await supabase
+      const { data: eventAggData, error: eventAggError } = await supabase
         .from('analytics_events')
         .select('event_name')
         .neq('event_name', 'page_view')
         .gte('created_at', startDate)
         .lte('created_at', endDate)
         .limit(SAFETY_LIMIT);
+
+      if (eventAggError) {
+        return NextResponse.json({ error: eventAggError.message }, { status: 500 });
+      }
+
+      eventsLimitReached = (eventAggData?.length || 0) >= SAFETY_LIMIT;
 
       const eventCounts: Record<string, number> = {};
       eventAggData?.forEach(e => {
@@ -79,13 +100,35 @@ export async function GET(request: Request) {
 
       // Get top pages (aggregated by url for page_view events)
       // Safety cap applied to prevent OOM
-      const { data: pageAggData } = await supabase
+      const { data: pageAggData, error: pageAggError } = await supabase
         .from('analytics_events')
         .select('url')
         .eq('event_name', 'page_view')
         .gte('created_at', startDate)
         .lte('created_at', endDate)
         .limit(SAFETY_LIMIT);
+
+      if (pageAggError) {
+        return NextResponse.json({ error: pageAggError.message }, { status: 500 });
+      }
+
+      pagesLimitReached = (pageAggData?.length || 0) >= SAFETY_LIMIT;
+
+      // Get daily views (aggregated by date for page_view events)
+      // Safety cap applied to prevent OOM
+      const { data: dailyAggData, error: dailyAggError } = await supabase
+        .from('analytics_events')
+        .select('created_at')
+        .eq('event_name', 'page_view')
+        .gte('created_at', startDate)
+        .lte('created_at', endDate)
+        .limit(SAFETY_LIMIT);
+
+      if (dailyAggError) {
+        return NextResponse.json({ error: dailyAggError.message }, { status: 500 });
+      }
+
+      dailyViewsLimitReached = (dailyAggData?.length || 0) >= SAFETY_LIMIT;
 
       const pageCounts: Record<string, number> = {};
       pageAggData?.forEach(e => {
@@ -99,24 +142,6 @@ export async function GET(request: Request) {
         .sort((a, b) => b.views - a.views)
         .slice(0, 10);
 
-      // Get daily views (aggregated by date for page_view events)
-      // Safety cap applied to prevent OOM
-      const { data: dailyAggData } = await supabase
-        .from('analytics_events')
-        .select('created_at')
-        .eq('event_name', 'page_view')
-        .gte('created_at', startDate)
-        .lte('created_at', endDate)
-        .limit(SAFETY_LIMIT);
-
-      const dailyCounts: Record<string, number> = {};
-      dailyAggData?.forEach(e => {
-        if (e.created_at && typeof e.created_at === 'string') {
-          const date = e.created_at.split('T')[0];
-          dailyCounts[date] = (dailyCounts[date] || 0) + 1;
-        }
-      });
-
       const dailyViews = Object.entries(dailyCounts)
         .map(([date, views]) => ({ date, views }))
         .sort((a, b) => a.date.localeCompare(b.date));
@@ -129,6 +154,9 @@ export async function GET(request: Request) {
         topEvents,
         topPages,
         dailyViews,
+        eventsLimitReached,
+        pagesLimitReached,
+        dailyViewsLimitReached,
         isAdmin: true
       });
     } else {

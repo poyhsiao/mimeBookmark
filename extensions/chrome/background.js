@@ -9,64 +9,48 @@ const METADATA_SESSION_KEY = 'mimeBookmark_currentMetadata';
 const POPUP_WINDOW_ID_KEY = 'mimeBookmark_popupWindowId';
 
 let currentMetadata = null;
-let popupWindowId = null;
 
-// Helper functions for persisting popupWindowId
-async function getStoredPopupWindowId() {
-  const result = await chrome.storage.session.get(POPUP_WINDOW_ID_KEY);
-  return result[POPUP_WINDOW_ID_KEY] || null;
-}
+const PopupManager = {
+  async init() {
+    const result = await chrome.storage.session.get(POPUP_WINDOW_ID_KEY);
+    popupWindowId = result[POPUP_WINDOW_ID_KEY] || null;
 
-async function setStoredPopupWindowId(windowId) {
-  popupWindowId = windowId;
-  if (windowId !== null) {
-    await chrome.storage.session.set({ [POPUP_WINDOW_ID_KEY]: windowId });
-  } else {
+    if (popupWindowId !== null) {
+      try {
+        await chrome.windows.get(popupWindowId);
+      } catch {
+        await this.clear();
+      }
+    }
+  },
+
+  async getValidId() {
+    if (popupWindowId === null) return null;
+    try {
+      await chrome.windows.get(popupWindowId);
+      return popupWindowId;
+    } catch {
+      await this.clear();
+      return null;
+    }
+  },
+
+  async set(id) {
+    popupWindowId = id;
+    await chrome.storage.session.set({ [POPUP_WINDOW_ID_KEY]: id });
+  },
+
+  async clear() {
+    popupWindowId = null;
     await chrome.storage.session.remove(POPUP_WINDOW_ID_KEY);
   }
-}
+};
 
-async function clearStoredPopupWindowId() {
-  popupWindowId = null;
-  await chrome.storage.session.remove(POPUP_WINDOW_ID_KEY);
-}
-
-async function validateAndGetPopupWindowId() {
-  // First restore from storage if in-memory value is null
-  if (popupWindowId === null) {
-    popupWindowId = await getStoredPopupWindowId();
-  }
-
-  if (popupWindowId === null) {
-    return null;
-  }
-
-  // Validate that the window still exists
-  try {
-    await chrome.windows.get(popupWindowId);
-    return popupWindowId;
-  } catch (e) {
-    // Window no longer exists, clear both in-memory and storage
-    await clearStoredPopupWindowId();
-    return null;
-  }
-}
+let popupWindowId = null;
 
 chrome.runtime.onInstalled.addListener(async () => {
   await createContextMenus();
-
-  // Restore popupWindowId from storage on startup
-  popupWindowId = await getStoredPopupWindowId();
-
-  // Validate if the window still exists
-  if (popupWindowId !== null) {
-    try {
-      await chrome.windows.get(popupWindowId);
-    } catch (e) {
-      // Window no longer exists, clear it
-      await clearStoredPopupWindowId();
-    }
-  }
+  await PopupManager.init();
 
   const apiUrl = await getApiUrl();
   const token = await getToken();
@@ -136,18 +120,20 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
 chrome.commands.onCommand.addListener(async (command) => {
   switch (command) {
-    case 'save-page':
+    case 'save-page': {
       const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (activeTab) {
         await savePage(activeTab.id);
       }
       break;
-    case 'open-popup':
+    }
+    case 'open-popup': {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab) {
         await openPopup(tab.id);
       }
       break;
+    }
   }
 });
 
@@ -155,13 +141,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   switch (message.action) {
     case 'metadataReady':
     case 'metadataUpdated':
-      currentMetadata = message.metadata;
-      chrome.storage.session.set({ [METADATA_SESSION_KEY]: message.metadata })
-        .then(() => sendResponse({ success: true }))
-        .catch((error) => {
-          console.error('Failed to save metadata to session storage:', error);
-          sendResponse({ success: false });
-        });
+      if (message.metadata?.url === sender.tab?.url) {
+        currentMetadata = message.metadata;
+        chrome.storage.session.set({ [METADATA_SESSION_KEY]: message.metadata })
+          .then(() => sendResponse({ success: true }))
+          .catch((error) => {
+            console.error('Failed to save metadata to session storage:', error);
+            sendResponse({ success: false });
+          });
+      } else {
+        sendResponse({ success: false, error: 'Metadata URL mismatch' });
+      }
       return true;
 
     case 'openPopup':
@@ -172,12 +162,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case 'getMetadata':
       chrome.storage.session.get(METADATA_SESSION_KEY)
-        .then(result => {
-          const metadata = result[METADATA_SESSION_KEY] || currentMetadata;
+        .then(async (result) => {
+          let metadata = result[METADATA_SESSION_KEY];
+          if (metadata && sender.tab?.url && metadata.url !== sender.tab.url) {
+            metadata = null;
+          }
           if (metadata) {
             currentMetadata = metadata;
           }
-          sendResponse(metadata);
+          sendResponse(metadata || null);
         })
         .catch(() => sendResponse(currentMetadata));
       return true;
@@ -198,10 +191,8 @@ async function openPopup(tabId) {
 
   if (!tabId) return;
 
-  // Check if popup window already exists using validated persisted value
-  const validatedWindowId = await validateAndGetPopupWindowId();
+  const validatedWindowId = await PopupManager.getValidId();
   if (validatedWindowId !== null) {
-    // Window exists, focus it and return
     await chrome.windows.update(validatedWindowId, { focused: true });
     return;
   }
@@ -214,11 +205,9 @@ async function openPopup(tabId) {
       files: ['content-script/content-script.js']
     });
   } catch (e) {
-    // Content script may already be injected; this is expected and safe to ignore
     console.warn('executeScript failed for tabId', tabId, '- content script may already be loaded:', e.message);
   }
 
-  // Wait for content script to be ready before sending message
   await sendMessageWithRetry(tabId, {
     action: 'openPopup',
     metadata: currentMetadata
@@ -232,8 +221,7 @@ async function openPopup(tabId) {
     focused: true
   });
 
-  // Persist the popup window ID
-  await setStoredPopupWindowId(popupWindow.id);
+  await PopupManager.set(popupWindow.id);
 }
 
 // Helper function to send messages with retry logic
@@ -255,107 +243,90 @@ async function sendMessageWithRetry(tabId, message, maxRetries = 5, delayMs = 10
   }
 }
 
-async function savePage(tabId) {
-  const apiUrl = await getApiUrl();
-  const token = await getToken();
+async function getConfiguredApiOrOpenOptions({ openOptionsOnMissing = true } = {}) {
+  const [apiUrl, token] = await Promise.all([getApiUrl(), getToken()]);
 
   if (!apiUrl || !token) {
-    await chrome.runtime.openOptionsPage();
-    return;
+    if (openOptionsOnMissing) {
+      await chrome.runtime.openOptionsPage();
+      return null;
+    }
+    throw new Error('Please configure your API settings');
   }
+
+  return { apiUrl, token };
+}
+
+async function saveWithPayload(tabId, buildPayload, successMessage) {
+  const config = await getConfiguredApiOrOpenOptions();
+  if (!config) return;
+  const { apiUrl, token } = config;
 
   try {
     const tab = await chrome.tabs.get(tabId);
-
-    // Always try to read from session storage first
-    const sessionData = await chrome.storage.session.get(METADATA_SESSION_KEY);
-    let metadata = sessionData[METADATA_SESSION_KEY];
-
-    // Fall back to in-memory or tab data if session storage is empty
-    if (!metadata) {
-      metadata = currentMetadata || {
-        url: tab.url,
-        title: tab.title,
-        favicon: tab.favIconUrl
-      };
-    }
-
-    await saveBookmarkToApi(apiUrl, token, {
-      url: tab.url,
-      title: metadata.title || tab.title,
-      description: metadata.description || '',
-      tags: [],
-      favicon: metadata.favicon || tab.favIconUrl
-    });
-
-    showNotification('Bookmark Saved', `Saved "${metadata.title || tab.title}" to MimeBookmark`);
-
+    const payload = await buildPayload({ tab });
+    await saveBookmarkToApi(apiUrl, token, payload);
+    showNotification('Bookmark Saved', successMessage(payload, tab));
   } catch (error) {
-    console.error('Failed to save page:', error);
+    console.error('Failed to save bookmark:', error);
     showNotification('Save Failed', error.message, true);
   }
 }
 
+async function savePage(tabId) {
+  await saveWithPayload(
+    tabId,
+    async ({ tab }) => {
+      const sessionData = await chrome.storage.session.get(METADATA_SESSION_KEY);
+      let metadata = sessionData[METADATA_SESSION_KEY];
+
+      if (!metadata || metadata.url !== tab.url) {
+        metadata = currentMetadata || {
+          url: tab.url,
+          title: tab.title,
+          favicon: tab.favIconUrl
+        };
+      }
+
+      return {
+        url: tab.url,
+        title: metadata.title || tab.title,
+        description: metadata.description || '',
+        tags: [],
+        favicon: metadata.favicon || tab.favIconUrl
+      };
+    },
+    (payload, tab) => `Saved "${payload.title || tab.title}" to MimeBookmark`
+  );
+}
+
 async function saveLink(info, tabId) {
-  const apiUrl = await getApiUrl();
-  const token = await getToken();
-
-  if (!apiUrl || !token) {
-    await chrome.runtime.openOptionsPage();
-    return;
-  }
-
-  try {
-    const tab = await chrome.tabs.get(tabId);
-
-    await saveBookmarkToApi(apiUrl, token, {
+  await saveWithPayload(
+    tabId,
+    async ({ tab }) => ({
       url: info.linkUrl,
       title: info.linkText || extractTitleFromUrl(info.linkUrl),
       description: '',
       tags: [],
       favicon: tab.favIconUrl
-    });
-
-    showNotification('Bookmark Saved', `Saved link to MimeBookmark`);
-
-  } catch (error) {
-    console.error('Failed to save link:', error);
-    showNotification('Save Failed', error.message, true);
-  }
+    }),
+    () => 'Saved link to MimeBookmark'
+  );
 }
 
 async function saveImage(info, tabId) {
-  const apiUrl = await getApiUrl();
-  const token = await getToken();
-
-  if (!apiUrl || !token) {
-    await chrome.runtime.openOptionsPage();
-    return;
-  }
-
-  try {
-    const tab = await chrome.tabs.get(tabId);
-
-    const metadata = {
+  await saveWithPayload(
+    tabId,
+    async ({ tab }) => ({
       url: info.srcUrl,
       title: `Image from ${tab.url}`,
       description: '',
       tags: [],
-      images: [{
-        src: info.srcUrl,
-        type: 'image'
-      }],
+      images: [{ src: info.srcUrl, type: 'image' }],
       favicon: tab.favIconUrl
-    };
-
-    await saveBookmarkToApi(apiUrl, token, metadata);
-
-    showNotification('Bookmark Saved', `Saved image to MimeBookmark`);
-
-  } catch (error) {
-    console.error('Failed to save image:', error);
-    showNotification('Save Failed', error.message, true);
-  }
+    }),
+    () => 'Saved image to MimeBookmark'
+  );
 }
 
 async function handleSaveBookmark(data) {
@@ -434,8 +405,7 @@ function extractTitleFromUrl(url) {
 
 // Listen for window close events to clear the stored popup window ID
 chrome.windows.onRemoved.addListener(async (windowId) => {
-  const storedWindowId = await getStoredPopupWindowId();
-  if (storedWindowId === windowId) {
-    await clearStoredPopupWindowId();
+  if (windowId === popupWindowId) {
+    await PopupManager.clear();
   }
 });

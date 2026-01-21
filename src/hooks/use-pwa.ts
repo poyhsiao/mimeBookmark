@@ -14,58 +14,40 @@ export function usePWA() {
   const [serviceWorkerRegistration, setServiceWorkerRegistration] = useState<ServiceWorkerRegistration | null>(null);
 
   useEffect(() => {
-    let isMounted = true;
-
-    // Check if already installed
-    if (window.matchMedia('(display-mode: standalone)').matches) {
-      setIsInstalled(true);
-    }
-
-    // Listen for install prompt
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setInstallPrompt(e as BeforeInstallPromptEvent);
     };
 
-    // Listen for successful installation
     const handleAppInstalled = () => {
       setIsInstalled(true);
       setInstallPrompt(null);
     };
 
-    // Check for service worker updates
     let registration: ServiceWorkerRegistration | null = null;
-    let installingWorkerStateChangeHandler: (() => void) | null = null;
-    let previousInstallingWorker: ServiceWorker | null = null;
 
     const handleUpdateFound = () => {
-      if (!registration?.installing) return;
+      const installing = registration?.installing;
+      if (!installing) return;
 
-      const installingWorker = registration.installing;
-
-      // Remove previous listener if exists
-      if (installingWorkerStateChangeHandler && previousInstallingWorker) {
-        previousInstallingWorker.removeEventListener('statechange', installingWorkerStateChangeHandler);
-      }
-
-      installingWorkerStateChangeHandler = () => {
-        if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-          if (isMounted) {
-            setNeedsRefresh(true);
-          }
+      const onStateChange = () => {
+        if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+          setNeedsRefresh(true);
         }
       };
 
-      installingWorker.addEventListener('statechange', installingWorkerStateChangeHandler);
-      previousInstallingWorker = installingWorker;
+      installing.addEventListener('statechange', onStateChange, { once: true });
     };
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.ready.then((reg) => {
-        if (!isMounted) return;
-
         registration = reg;
         setServiceWorkerRegistration(reg);
+
+        if (reg.waiting && navigator.serviceWorker.controller) {
+          setNeedsRefresh(true);
+        }
+
         reg.addEventListener('updatefound', handleUpdateFound);
       });
     }
@@ -74,15 +56,10 @@ export function usePWA() {
     window.addEventListener('appinstalled', handleAppInstalled);
 
     return () => {
-      isMounted = false;
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
       if (registration) {
         registration.removeEventListener('updatefound', handleUpdateFound);
-      }
-      // Clean up statechange listener to avoid memory leaks
-      if (installingWorkerStateChangeHandler && previousInstallingWorker) {
-        previousInstallingWorker.removeEventListener('statechange', installingWorkerStateChangeHandler);
       }
     };
   }, []);
@@ -105,38 +82,29 @@ export function usePWA() {
     if (serviceWorkerRegistration?.waiting) {
       const waiting = serviceWorkerRegistration.waiting;
       let hasReloaded = false;
-      let timeoutId: NodeJS.Timeout | null = null;
-
-      // Listen for controller change
-      const handleControllerChange = () => {
-        if (!hasReloaded) {
-          hasReloaded = true;
-          if (timeoutId) clearTimeout(timeoutId);
-          window.location.reload();
-        }
-      };
-
-      navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange, { once: true });
-
-      // Send skip waiting message
-      waiting.postMessage({ type: 'SKIP_WAITING' });
-
-      // Fallback timeout in case controllerchange doesn't fire
-      timeoutId = setTimeout(() => {
-        navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+      const timeoutId = setTimeout(() => {
         if (!hasReloaded) {
           hasReloaded = true;
           window.location.reload();
         }
       }, 3000);
 
-      // Return cleanup function
+      const handleControllerChange = () => {
+        if (!hasReloaded) {
+          hasReloaded = true;
+          clearTimeout(timeoutId);
+          window.location.reload();
+        }
+      };
+
+      navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange, { once: true });
+      waiting.postMessage({ type: 'SKIP_WAITING' });
+
       return () => {
-        if (timeoutId) clearTimeout(timeoutId);
-        navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+        clearTimeout(timeoutId);
       };
     }
-    return () => {}; // Return no-op cleanup if no waiting worker
+    return () => {};
   };
 
   return {

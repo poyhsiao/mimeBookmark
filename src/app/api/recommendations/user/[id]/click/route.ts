@@ -40,13 +40,15 @@ export async function POST(
       .single();
 
     if (recommendation?.bookmark_url) {
-      await supabase.from('analytics_events').insert({
+      const { error: analyticsError } = await supabase.from('analytics_events').insert({
         user_id: user.id,
         event_name: 'recommendation.click',
-        event_type: 'conversion',
         event_data: { recommendation_id: recommendationId, rule_id: recommendation.rule_id, url: recommendation.bookmark_url },
         url: recommendation.bookmark_url
       });
+      if (analyticsError) {
+        console.error('Failed to log recommendation click event:', analyticsError);
+      }
     }
 
     return NextResponse.json({ success: true });

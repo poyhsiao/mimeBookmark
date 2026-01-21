@@ -16,37 +16,57 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('subscription_tier, preferences')
       .eq('id', user.id)
       .single();
 
+    if (profileError) {
+      console.error('Profile fetch error:', profileError);
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+
     const tier = profile?.subscription_tier || 'free';
 
     // Fetch user's existing bookmark URLs to avoid duplicate recommendations
-    const { data: userBookmarks } = await supabase
+    const { data: userBookmarks, error: userBookmarksError } = await supabase
       .from('bookmarks')
       .select('url')
       .eq('user_id', user.id)
       .is('deleted_at', null);
 
+    if (userBookmarksError) {
+      console.error('User bookmarks fetch error:', userBookmarksError);
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+
     const userUrls = new Set((userBookmarks || []).map(b => b.url).filter(Boolean));
 
-    const { data: userTags } = await supabase
+    const { data: userTags, error: userTagsError } = await supabase
       .from('tags')
       .select('name')
       .eq('user_id', user.id)
       .is('deleted_at', null)
       .limit(20);
 
+    if (userTagsError) {
+      console.error('User tags fetch error:', userTagsError);
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+
     const userTagNames = userTags?.map(t => t.name) || [];
 
-    const { data: rules } = await supabase
+    const { data: rules, error: rulesError } = await supabase
       .from('recommendation_rules')
       .select('*')
       .eq('is_active', true)
       .order('priority', { ascending: false });
+
+    if (rulesError) {
+      console.error('Rules fetch error:', rulesError);
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
 
     const tierOrder = { free: 0, pro: 1, team: 2 };
 
@@ -75,10 +95,15 @@ export async function GET(request: Request) {
     }) || [];
 
     // Pre-fetch all user recommendations to avoid N+1 queries
-    const { data: allUserRecs } = await supabase
+    const { data: allUserRecs, error: allUserRecsError } = await supabase
       .from('user_recommendations')
       .select('*')
       .eq('user_id', user.id);
+
+    if (allUserRecsError) {
+      console.error('All user recommendations fetch error:', allUserRecsError);
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
 
     const dismissedRuleIds = new Set(
       (allUserRecs || [])
@@ -132,6 +157,10 @@ export async function GET(request: Request) {
         if (hasExcludedTag) {
           continue;
         }
+      }
+
+      if (conditions.minBookmarksCount != null && userUrls.size < conditions.minBookmarksCount) {
+        continue;
       }
 
       const recContent = rule.recommendations as {

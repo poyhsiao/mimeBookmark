@@ -67,7 +67,7 @@ export async function POST(request: Request) {
       .eq('id', user.id)
       .single();
 
-    if (profile?.subscription_tier !== 'team' && user.user_metadata?.role !== 'admin') {
+    if (profile?.subscription_tier !== 'team' && user.app_metadata?.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden - team subscription or admin access required' }, { status: 403 });
     }
 

@@ -66,24 +66,18 @@ export function RecommendationSidebar({
     };
   }, [context, maxItems]);
 
-  const handleClick = async (recommendation: Recommendation) => {
-    try {
-      await fetch(`/api/recommendations/user/${recommendation.id}/click`, {
-        method: 'POST'
-      });
-      if (recommendation.bookmark_url) {
-        window.open(recommendation.bookmark_url, '_blank', 'noopener,noreferrer');
-      }
-    } catch (error) {
-      console.error('Failed to track click:', error);
+  const handleClick = (recommendation: Recommendation) => {
+    if (recommendation.bookmark_url) {
+      window.open(recommendation.bookmark_url, '_blank', 'noopener,noreferrer');
     }
+    void fetch(`/api/recommendations/user/${recommendation.id}/click`, {
+      method: 'POST'
+    }).catch(error => {
+      console.error('Failed to track click:', error);
+    });
   };
 
   const handleDismiss = async (id: string) => {
-    // Save previous state for rollback
-    const previousDismissed = new Set(dismissed);
-
-    // Optimistic update
     setDismissed(prev => new Set([...prev, id]));
 
     try {
@@ -92,13 +86,19 @@ export function RecommendationSidebar({
       });
 
       if (!response.ok) {
-        // Rollback on server error
-        setDismissed(previousDismissed);
+        setDismissed(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
         console.error('Failed to dismiss recommendation: Server returned error');
       }
     } catch (error) {
-      // Rollback on network error
-      setDismissed(previousDismissed);
+      setDismissed(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
       console.error('Failed to dismiss recommendation:', error);
     }
   };

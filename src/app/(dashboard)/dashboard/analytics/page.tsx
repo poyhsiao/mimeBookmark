@@ -38,6 +38,7 @@ export default function AnalyticsDashboard() {
     async function fetchAnalytics() {
       try {
         setLoading(true);
+        setError(null);
         const endDate = new Date().toISOString();
         const startDate = new Date(Date.now() - parseInt(dateRange) * 24 * 60 * 60 * 1000).toISOString();
 
@@ -161,7 +162,7 @@ function AdminAnalyticsView({ data }: { data: AnalyticsData }) {
           </div>
           <div className="flex justify-between text-xs text-muted-foreground mt-2">
             <span>{data.dailyViews?.[0]?.date}</span>
-            <span>{data.dailyViews?.[data.dailyViews.length - 1]?.date}</span>
+            <span>{data.dailyViews?.[(data.dailyViews?.length ?? 1) - 1]?.date}</span>
           </div>
         </div>
 

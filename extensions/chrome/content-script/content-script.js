@@ -360,19 +360,57 @@
   }
 
   function exposeToBackgroundScript() {
-    window.mimeBookmarkGetMetadata = function() {
-      return getStoredMetadata() || extractMetadata();
+    window.__mimeBookmark__ = Object.freeze({
+      getMetadata: function() {
+        return getStoredMetadata() || extractMetadata();
+      },
+      extractFresh: function() {
+        const metadata = extractMetadata();
+        storeMetadata(metadata);
+        return metadata;
+      },
+      clearCache: function() {
+        clearStoredMetadata();
+      }
+    });
+  }
+
+  function appendNodeSafely(node, prefer = 'head') {
+    const targets = {
+      head: () => document.head,
+      body: () => document.body,
+      root: () => document.documentElement,
     };
 
-    window.mimeBookmarkExtractFresh = function() {
-      const metadata = extractMetadata();
-      storeMetadata(metadata);
-      return metadata;
+    const orderedTargets =
+      prefer === 'head'
+        ? [targets.head, targets.body, targets.root]
+        : [targets.body, targets.head, targets.root];
+
+    const tryAppend = () => {
+      for (const getTarget of orderedTargets) {
+        const target = getTarget();
+        if (target) {
+          target.appendChild(node);
+          return true;
+        }
+      }
+      return false;
     };
 
-    window.mimeBookmarkClearCache = function() {
-      clearStoredMetadata();
-    };
+    if (tryAppend()) return;
+
+    if (document.readyState === 'loading') {
+      document.addEventListener(
+        'DOMContentLoaded',
+        () => {
+          tryAppend();
+        },
+        { once: true },
+      );
+    } else {
+      tryAppend();
+    }
   }
 
   function injectFloatingButton() {
@@ -421,55 +459,15 @@
       try {
         chrome.runtime.sendMessage({
           action: 'openPopup',
-          metadata: window.mimeBookmarkExtractFresh()
+          metadata: window.__mimeBookmark__.extractFresh()
         });
       } catch (error) {
         console.warn('MimeBookmark: Failed to send message to background script:', error);
       }
     });
 
-    // Safely inject style element
-    if (document.head) {
-      document.head.appendChild(style);
-    } else if (document.body) {
-      document.body.appendChild(style);
-    } else if (document.documentElement) {
-      document.documentElement.appendChild(style);
-    } else {
-      // Defer until DOM is ready
-      if (document.readyState !== 'loading') {
-        // DOM already loaded, append immediately
-        if (document.head) {
-          document.head.appendChild(style);
-        } else if (document.body) {
-          document.body.appendChild(style);
-        } else if (document.documentElement) {
-          document.documentElement.appendChild(style);
-        }
-      } else {
-        document.addEventListener('DOMContentLoaded', () => {
-          if (document.head) {
-            document.head.appendChild(style);
-          } else if (document.body) {
-            document.body.appendChild(style);
-          } else if (document.documentElement) {
-            document.documentElement.appendChild(style);
-          }
-        }, { once: true });
-      }
-    }
-
-    // Ensure document.body exists before appending
-    if (document.body) {
-      document.body.appendChild(button);
-    } else {
-      // Defer until body is available
-      document.addEventListener('DOMContentLoaded', () => {
-        if (document.body) {
-          document.body.appendChild(button);
-        }
-      }, { once: true });
-    }
+    appendNodeSafely(style, 'head');
+    appendNodeSafely(button, 'body');
   }
 
   function init() {
@@ -521,12 +519,10 @@
       if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
         for (const node of mutation.addedNodes) {
           if (node.nodeType === Node.ELEMENT_NODE) {
-            // Check if the node itself is the meta tag
             if (node.tagName === 'META' && node.getAttribute('property') === 'og:title') {
               shouldReextract = true;
               break;
             }
-            // Check if any descendant is the meta tag
             if (node.querySelector && node.querySelector('meta[property="og:title"]')) {
               shouldReextract = true;
               break;
@@ -552,32 +548,23 @@
     }
   });
 
-  const attachObserver = function() {
-    if (document.head) {
-      observer.observe(document.head, {
-        childList: true,
-        subtree: true
-      });
+  function onDomReady(cb) {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', cb, { once: true });
+    } else {
+      cb();
     }
-  };
+  }
 
-  if (document.head) {
-    attachObserver();
-  } else if (document.readyState === 'loading') {
-    // Wait for head to be available
-    document.addEventListener('DOMContentLoaded', attachObserver, { once: true });
-  } else {
-    // DOM already loaded but head still missing, try observing documentElement
-    const tempObserver = new MutationObserver(() => {
-      if (document.head) {
-        tempObserver.disconnect();
-        attachObserver();
-      }
-    });
-    tempObserver.observe(document.documentElement, {
+  function attachMetadataObserver() {
+    const target = document.head || document.documentElement;
+    if (!target) return;
+    observer.observe(target, {
       childList: true,
       subtree: true
     });
   }
+
+  onDomReady(attachMetadataObserver);
 
 })();

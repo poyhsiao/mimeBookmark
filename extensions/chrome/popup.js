@@ -292,7 +292,10 @@ async function saveBookmark() {
       throw new Error(errorData.message || 'Failed to save bookmark');
     }
 
-    await response.json();
+    const contentType = response.headers.get('content-type');
+    if (response.status !== 204 && contentType && contentType.includes('application/json')) {
+      await response.json().catch(() => ({}));
+    }
     showStatus('Bookmark saved successfully!', 'success');
     saveBtn.textContent = 'Saved!';
 
