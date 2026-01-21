@@ -1,0 +1,36 @@
+/* MimeBookmark Content Script Styles */
+
+/* Floating button is inline styled in content-script.js for isolation */
+
+/* Save form modal overlay */
+#mimebookmark-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Save form modal */
+#mimebookmark-modal {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  width: 400px;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+/* Highlight selected element */
+.mimebookmark-highlight {
+  outline: 3px solid #667eea !important;
+  outline-offset: 2px !important;
+  background-color: rgba(102, 126, 234, 0.1) !important;
+}

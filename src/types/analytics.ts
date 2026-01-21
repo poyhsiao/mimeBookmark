@@ -1,4 +1,5 @@
-export type AnalyticsEvent = 
+export type AnalyticsEvent =
+  | 'page_view'
   | 'user.signup'
   | 'user.login'
   | 'bookmark.create'
@@ -9,7 +10,8 @@ export type AnalyticsEvent =
   | 'collection.delete'
   | 'tag.create'
   | 'search.execute'
-  | 'settings.update';
+  | 'settings.update'
+  | 'recommendation.click';
 
 export interface TrackEventOptions {
   eventName: AnalyticsEvent;

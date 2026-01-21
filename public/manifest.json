@@ -1,0 +1,116 @@
+{
+  "name": "MimeBookmark",
+  "short_name": "MimeBookmark",
+  "description": "Cross-platform bookmark management - Organize your bookmarks across all platforms",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#6366f1",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en-US",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Add Bookmark",
+      "short_name": "Add",
+      "description": "Quickly add a new bookmark",
+      "url": "/bookmarks/new",
+      "icons": [{ "src": "/icons/add-bookmark.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "My Collections",
+      "short_name": "Collections",
+      "description": "View all collections",
+      "url": "/collections",
+      "icons": [{ "src": "/icons/collections.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Search",
+      "short_name": "Search",
+      "description": "Search bookmarks",
+      "url": "/search",
+      "icons": [{ "src": "/icons/search.png", "sizes": "192x192" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/dashboard.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "MimeBookmark Dashboard"
+    },
+    {
+      "src": "/screenshots/mobile.png",
+      "sizes": "720x1280",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "MimeBookmark Mobile View"
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false,
+  "display_override": ["window-controls-overlay", "standalone", "browser"],
+  "_comment_browser_specific": "The following properties are browser-specific and may be ignored by some browsers",
+  "edge_side_panel": {
+    "_comment": "Edge/Chromium only - ignored by Firefox/Safari",
+    "preferred_width": 400
+  },
+  "handle_links": "preferred",
+  "_comment_handle_links": "Chromium only - ignored by Firefox/Safari",
+  "launch_handler": {
+    "_comment": "Chromium only - ignored by Firefox/Safari",
+    "client_mode": ["navigate-existing", "auto"]
+  }
+}
