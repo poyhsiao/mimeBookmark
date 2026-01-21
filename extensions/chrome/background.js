@@ -7,6 +7,7 @@ const MENU_ID_SAVE_IMAGE = 'mimebookmark-save-image';
 const MENU_ID_OPEN_POPUP = 'mimebookmark-open-popup';
 const METADATA_SESSION_KEY = 'mimeBookmark_currentMetadata';
 const POPUP_WINDOW_ID_KEY = 'mimeBookmark_popupWindowId';
+const MIMEBOOKMARK_STORAGE_KEY = 'mimeBookmark_pageMetadata';
 
 let currentMetadata = null;
 
@@ -152,6 +153,47 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       } else {
         sendResponse({ success: false, error: 'Metadata URL mismatch' });
       }
+      return true;
+
+    case 'storeMetadata':
+      if (message.metadata?.url) {
+        chrome.storage.local.set({ [MIMEBOOKMARK_STORAGE_KEY]: message })
+          .then(() => sendResponse({ success: true }))
+          .catch((error) => {
+            console.error('Failed to store metadata:', error);
+            sendResponse({ success: false });
+          });
+      } else {
+        sendResponse({ success: false, error: 'Invalid metadata' });
+      }
+      return true;
+
+    case 'getStoredMetadata':
+      chrome.storage.local.get(MIMEBOOKMARK_STORAGE_KEY)
+        .then((result) => {
+          const stored = result[MIMEBOOKMARK_STORAGE_KEY];
+          if (stored) {
+            const oneHour = 60 * 60 * 1000;
+            if (Date.now() - stored.timestamp < oneHour && stored.url === message.url) {
+              sendResponse({ metadata: stored.metadata });
+              return;
+            }
+          }
+          sendResponse({ metadata: null });
+        })
+        .catch((error) => {
+          console.error('Failed to retrieve stored metadata:', error);
+          sendResponse({ metadata: null });
+        });
+      return true;
+
+    case 'clearStoredMetadata':
+      chrome.storage.local.remove(MIMEBOOKMARK_STORAGE_KEY)
+        .then(() => sendResponse({ success: true }))
+        .catch((error) => {
+          console.error('Failed to clear stored metadata:', error);
+          sendResponse({ success: false });
+        });
       return true;
 
     case 'openPopup':

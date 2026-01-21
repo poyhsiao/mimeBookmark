@@ -1,8 +1,6 @@
 (function() {
   'use strict';
 
-  const MIMEBOOKMARK_STORAGE_KEY = 'mimeBookmark_pageMetadata';
-
   function extractMetadata() {
     const metadata = {
       url: window.location.href,
@@ -359,57 +357,99 @@
     return true;
   }
 
-  function storeMetadata(metadata) {
+  function storeMetadata(metadata, callback) {
     try {
-      localStorage.setItem(MIMEBOOKMARK_STORAGE_KEY, JSON.stringify({
-        metadata,
-        url: window.location.href,
-        timestamp: Date.now()
-      }));
+      chrome.runtime.sendMessage({
+        action: 'storeMetadata',
+        metadata: {
+          ...metadata,
+          url: window.location.href,
+          timestamp: Date.now()
+        }
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.warn('MimeBookmark: Failed to store metadata:', chrome.runtime.lastError);
+        }
+        if (callback) callback(response);
+      });
     } catch (e) {
       console.warn('MimeBookmark: Failed to store metadata:', e);
+      if (callback) callback({ success: false });
     }
   }
 
-  function getStoredMetadata() {
+  function getStoredMetadata(callback) {
     try {
-      const stored = localStorage.getItem(MIMEBOOKMARK_STORAGE_KEY);
-      if (stored) {
-        const data = JSON.parse(stored);
-        const oneHour = 60 * 60 * 1000;
-        // Validate that the cached entry is for the current page
-        if (Date.now() - data.timestamp < oneHour && data.url === window.location.href) {
-          return data.metadata;
+      chrome.runtime.sendMessage({
+        action: 'getStoredMetadata',
+        url: window.location.href
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.warn('MimeBookmark: Failed to retrieve stored metadata:', chrome.runtime.lastError);
+          if (callback) callback(null);
+          return;
         }
-      }
+        if (callback) callback(response?.metadata || null);
+      });
     } catch (e) {
       console.warn('MimeBookmark: Failed to retrieve stored metadata:', e);
+      if (callback) callback(null);
     }
-    return null;
   }
 
-  function clearStoredMetadata() {
+  function clearStoredMetadata(callback) {
     try {
-      localStorage.removeItem(MIMEBOOKMARK_STORAGE_KEY);
+      chrome.runtime.sendMessage({
+        action: 'clearStoredMetadata'
+      }, () => {
+        if (callback) callback();
+      });
     } catch (e) {
       console.warn('MimeBookmark: Failed to clear stored metadata:', e);
+      if (callback) callback();
     }
   }
 
   function exposeToBackgroundScript() {
     window.__mimeBookmark__ = Object.freeze({
-      getMetadata: function() {
-        return getStoredMetadata() || extractMetadata();
+      getMetadata: function(callback) {
+        getStoredMetadata((stored) => {
+          if (stored) {
+            callback(stored);
+          } else {
+            const fresh = extractMetadata();
+            callback(fresh);
+          }
+        });
       },
-      extractFresh: function() {
+      extractFresh: function(callback) {
         const metadata = extractMetadata();
-        storeMetadata(metadata);
+        storeMetadata(metadata, callback);
         return metadata;
       },
-      clearCache: function() {
-        clearStoredMetadata();
+      clearCache: function(callback) {
+        clearStoredMetadata(callback);
       }
     });
+  }
+
+  function init() {
+    const metadata = extractMetadata();
+    storeMetadata(metadata);
+    exposeToBackgroundScript();
+
+    try {
+      chrome.runtime.sendMessage({
+        action: 'metadataReady',
+        metadata
+      });
+    } catch (error) {
+      console.warn('MimeBookmark: Failed to send metadataReady message:', error);
+    }
+
+    if (shouldShowFloatingButton()) {
+      injectFloatingButton();
+    }
   }
 
   function appendNodeSafely(node, prefer = 'head') {
