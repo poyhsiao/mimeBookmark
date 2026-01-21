@@ -14,6 +14,11 @@ export function usePWA() {
   const [serviceWorkerRegistration, setServiceWorkerRegistration] = useState<ServiceWorkerRegistration | null>(null);
 
   useEffect(() => {
+    const isStandalone =
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+      (navigator as Navigator & { standalone?: boolean }).standalone === true;
+    setIsInstalled(isStandalone);
+
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setInstallPrompt(e as BeforeInstallPromptEvent);
@@ -70,8 +75,8 @@ export function usePWA() {
     await installPrompt.prompt();
     const { outcome } = await installPrompt.userChoice;
 
+    setInstallPrompt(null);
     if (outcome === 'accepted') {
-      setInstallPrompt(null);
       return true;
     }
 

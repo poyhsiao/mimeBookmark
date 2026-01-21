@@ -15,11 +15,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('subscription_tier')
       .eq('id', user.id)
       .single();
+
+    if (profileError) {
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
 
     const tier = profile?.subscription_tier || 'free';
 
@@ -61,11 +65,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('subscription_tier')
       .eq('id', user.id)
       .single();
+
+    if (profileError) {
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
 
     if (profile?.subscription_tier !== 'team' && user.app_metadata?.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden - team subscription or admin access required' }, { status: 403 });

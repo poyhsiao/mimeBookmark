@@ -21,7 +21,7 @@ export async function POST(
       .update({ clicked_at: new Date().toISOString() })
       .eq('id', recommendationId)
       .eq('user_id', user.id)
-      .select('id');
+      .select('id, bookmark_url, rule_id');
 
     if (error) {
       console.error('Failed to update recommendation click:', error);
@@ -32,12 +32,7 @@ export async function POST(
       return NextResponse.json({ error: 'Recommendation not found' }, { status: 404 });
     }
 
-    const { data: recommendation } = await supabase
-      .from('user_recommendations')
-      .select('bookmark_url, rule_id')
-      .eq('id', recommendationId)
-      .eq('user_id', user.id)
-      .single();
+    const recommendation = updatedRows[0];
 
     if (recommendation?.bookmark_url) {
       const { error: analyticsError } = await supabase.from('analytics_events').insert({

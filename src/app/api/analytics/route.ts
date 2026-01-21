@@ -15,13 +15,22 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('subscription_tier')
       .eq('id', user.id)
       .single();
 
-    const isAdmin = profile?.subscription_tier === 'team' || user.app_metadata?.role === 'admin';
+    if (profileError) {
+      return NextResponse.json({ error: profileError.message }, { status: 500 });
+    }
+
+    const tier = profile?.subscription_tier ?? 'free';
+    const isAdmin = tier === 'team' || user.app_metadata?.role === 'admin';
+
+    if (!isAdmin && tier !== 'pro') {
+      return NextResponse.json({ error: 'Forbidden - Pro subscription required for analytics' }, { status: 403 });
+    }
 
     if (isAdmin) {
       // SAFETY NOTE: Client-side aggregation with .limit() safety caps
@@ -137,6 +146,14 @@ export async function GET(request: Request) {
         }
       });
 
+      const dailyCounts: Record<string, number> = {};
+      dailyAggData?.forEach(e => {
+        if (e.created_at && typeof e.created_at === 'string') {
+          const date = e.created_at.split('T')[0];
+          dailyCounts[date] = (dailyCounts[date] || 0) + 1;
+        }
+      });
+
       const topPages = Object.entries(pageCounts)
         .map(([url, views]) => ({ url, views }))
         .sort((a, b) => b.views - a.views)
@@ -160,7 +177,14 @@ export async function GET(request: Request) {
         isAdmin: true
       });
     } else {
-      const [{ count: bookmarksCount }, { count: collectionsCount }, { count: tagsCount }, { count: searchesCount }, { count: importsCount }, { count: exportsCount }] = await Promise.all([
+      const [
+        bookmarksRes,
+        collectionsRes,
+        tagsRes,
+        searchesRes,
+        importsRes,
+        exportsRes
+      ] = await Promise.all([
         supabase.from('bookmarks').select('id', { count: 'exact', head: true }).eq('user_id', user.id).is('deleted_at', null),
         supabase.from('collections').select('id', { count: 'exact', head: true }).eq('user_id', user.id).is('deleted_at', null),
         supabase.from('tags').select('id', { count: 'exact', head: true }).eq('user_id', user.id).is('deleted_at', null),
@@ -168,6 +192,26 @@ export async function GET(request: Request) {
         supabase.from('import_jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).gte('created_at', startDate).lte('created_at', endDate),
         supabase.from('export_jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).gte('created_at', startDate).lte('created_at', endDate)
       ]);
+
+      const errors = [
+        bookmarksRes.error,
+        collectionsRes.error,
+        tagsRes.error,
+        searchesRes.error,
+        importsRes.error,
+        exportsRes.error
+      ].filter(Boolean);
+
+      if (errors.length > 0) {
+        return NextResponse.json({ error: errors[0]!.message }, { status: 500 });
+      }
+
+      const { count: bookmarksCount } = bookmarksRes;
+      const { count: collectionsCount } = collectionsRes;
+      const { count: tagsCount } = tagsRes;
+      const { count: searchesCount } = searchesRes;
+      const { count: importsCount } = importsRes;
+      const { count: exportsCount } = exportsRes;
 
       return NextResponse.json({
         totalBookmarks: bookmarksCount || 0,
