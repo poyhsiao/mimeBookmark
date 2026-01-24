@@ -33,7 +33,7 @@ jobs:
       - name: Run opencode
         uses: anomalyco/opencode/github@v1.0.0
         env:
-          OPENCODE_API_KEY: ${{ secrets.ZAI_API_KEY }}
+          ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}
           OPENCODE_MODE: "zai-coding-plan/glm-4.7-flash"
         with:
           model: zai-coding-plan/glm-4.7-flash
