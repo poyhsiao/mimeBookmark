@@ -36,4 +36,4 @@ jobs:
           ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}
           OPENCODE_MODE: "zai-coding-plan/glm-4.7-flash"
         with:
-          model: zai-coding-plan/glm-4.7-flash
+          model: "zai-coding-plan/glm-4.7-flash"
