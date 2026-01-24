@@ -34,7 +34,6 @@ jobs:
         uses: anomalyco/opencode/github@v1.0.0
         env:
           OPENCODE_API_KEY: ${{ secrets.ZAI_API_KEY }}
-          OPENCODE_BASE_URL: https://api.z.ai/api/coding/paas/v4
-          OPENCODE_MODE: "z-ai/glm-4.7"
+          OPENCODE_MODE: "zai-coding-plan/glm-4.7-flash"
         with:
-          model: z-ai/glm-4.7
+          model: zai-coding-plan/glm-4.7-flash
