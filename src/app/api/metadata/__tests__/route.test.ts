@@ -9,15 +9,15 @@ vi.mock('@/lib/metadata/metadata-service', () => ({
 }));
 
 // Mock DNS module to prevent real DNS lookups
-vi.mock('dns', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('dns')>();
+vi.mock('dns/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('dns/promises')>();
   return {
-    default: actual.default || actual,
+    default: actual,
     ...actual,
-    promises: {
-      ...actual.promises,
-      lookup: vi.fn(),
-    },
+    lookup: vi.fn().mockResolvedValue({
+      address: '93.184.216.34',
+      family: 4,
+    }),
   };
 });
 
@@ -27,14 +27,12 @@ describe('Metadata Route', () => {
     requestLog.clear();
 
     // Reset DNS mock to default behavior (return public IP)
-    const dns = await import('dns');
-    vi.mocked(dns.promises.lookup).mockReset();
-    vi.mocked(dns.promises.lookup).mockResolvedValue([
-      {
-        address: '93.184.216.34', // Example public IP (example.com)
-        family: 4,
-      },
-    ] as any);
+    const dns = await import('dns/promises');
+    vi.mocked(dns.lookup).mockReset();
+    vi.mocked(dns.lookup).mockResolvedValue({
+      address: '93.184.216.34', // Example public IP (example.com)
+      family: 4,
+    });
 
     // Reset fetchMetadata mock
     const { fetchMetadata } = await import('@/lib/metadata/metadata-service');
@@ -69,17 +67,13 @@ describe('Metadata Route', () => {
   // Currently skipped because DNS mock is not being called in test environment
   test.skip('should allow public URLs', async () => {
     // Explicitly set DNS mock for this test
-    const dns = await import('dns');
-    const lookupSpy = vi.mocked(dns.promises.lookup);
+    const dns = await import('dns/promises');
+    const lookupSpy = vi.mocked(dns.lookup);
 
     // Mock to return a resolved promise (not reject)
-    lookupSpy.mockImplementation((hostname: any, options: any) => {
-      return Promise.resolve([
-        {
-          address: '93.184.216.34', // Example public IP (example.com)
-          family: 4,
-        },
-      ] as any);
+    lookupSpy.mockResolvedValue({
+      address: '93.184.216.34', // Example public IP (example.com)
+      family: 4,
     });
 
     // We haven't mocked fetchMetadata result, but it shouldn't be blocked by validation
@@ -148,13 +142,11 @@ describe('Metadata Route', () => {
   // Currently skipped because DNS mock is not being called in test environment
   test.skip('should correctly parse x-forwarded-for header', async () => {
     // Explicitly set DNS mock for this test
-    const dns = await import('dns');
-    vi.mocked(dns.promises.lookup).mockResolvedValue([
-      {
-        address: '93.184.216.34', // Example public IP (example.com)
-        family: 4,
-      },
-    ] as any);
+    const dns = await import('dns/promises');
+    vi.mocked(dns.lookup).mockResolvedValue({
+      address: '93.184.216.34', // Example public IP (example.com)
+      family: 4,
+    });
 
     const { fetchMetadata } = await import('@/lib/metadata/metadata-service');
     vi.mocked(fetchMetadata).mockResolvedValue({

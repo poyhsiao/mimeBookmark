@@ -1,14 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { logError } from "../server";
-import { getServerLogger, resetServerLogger } from "../logger";
+import { logError, getServerLogger } from "../server";
 
 describe("Server Logging", () => {
   beforeEach(() => {
-    resetServerLogger();
+    vi.clearAllMocks();
   });
 
   it("passes the actual error object to the logger", async () => {
-    const logger = getServerLogger();
+    const logger = await getServerLogger();
     const errorSpy = vi
       .spyOn(logger, "error")
       .mockImplementation(async () => {});
@@ -17,9 +16,8 @@ describe("Server Logging", () => {
     await logError(testError, { message: "Wrapped message" });
 
     expect(errorSpy).toHaveBeenCalledWith(
-      "Wrapped message",
       testError,
-      expect.any(Object),
+      expect.objectContaining({ message: "Wrapped message" }),
     );
   });
 });

@@ -134,6 +134,55 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['collection_bookmarks']['Row'], 'created_at'>;
         Update: Partial<Database['public']['Tables']['collection_bookmarks']['Insert']>;
       };
+      recommendation_rules: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          priority: number;
+          is_active: boolean;
+          min_tier: 'free' | 'pro' | 'team';
+          conditions: Json;
+          recommendations: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['recommendation_rules']['Row'], 'created_at' | 'updated_at'>;
+        Update: Partial<Database['public']['Tables']['recommendation_rules']['Insert']>;
+      };
+      user_recommendations: {
+        Row: {
+          id: string;
+          user_id: string;
+          rule_id: string;
+          bookmark_url: string | null;
+          title: string | null;
+          description: string | null;
+          cta_text: string | null;
+          is_dismissed: boolean;
+          dismissed_at: string | null;
+          clicked_at: string | null;
+          impression_count: number;
+          last_shown_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['user_recommendations']['Row'], 'created_at' | 'updated_at'>;
+        Update: Partial<Database['public']['Tables']['user_recommendations']['Insert']>;
+      };
+      recommendation_analytics: {
+        Row: {
+          id: string;
+          rule_id: string;
+          user_id: string | null;
+          event_type: 'impression' | 'click' | 'dismiss' | 'conversion';
+          revenue_cents: number;
+          metadata: Json;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['recommendation_analytics']['Row'], 'created_at' | 'user_id'> & { user_id: string };
+        Update: Partial<Database['public']['Tables']['recommendation_analytics']['Insert']>;
+      };
     };
   };
 }

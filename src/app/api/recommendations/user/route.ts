@@ -1,230 +1,129 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getRecommendationEngine } from '@/lib/recommendations/rule-engine';
 import { createClient } from '@/lib/supabase/server';
-import { NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
+export async function GET(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams;
+  const contextParam = searchParams.get('context');
+  const allowedContexts = ['sidebar', 'search', 'notification', 'bookmark_added', 'collection_view'] as const;
+  const context = (contextParam && allowedContexts.includes(contextParam as any))
+    ? contextParam as 'sidebar' | 'search' | 'notification' | 'bookmark_added' | 'collection_view'
+    : 'sidebar';
+  const query = searchParams.get('query');
 
-export async function GET(request: Request) {
   try {
     const supabase = await createClient();
-    const { searchParams } = new URL(request.url);
-    const parsedLimit = parseInt(searchParams.get('limit') || '10', 10);
-    const limit = isNaN(parsedLimit) ? 10 : Math.max(1, Math.min(parsedLimit, 100));
-    const context = searchParams.get('context') || 'sidebar';
-
     const { data: { user } } = await supabase.auth.getUser();
+
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('subscription_tier, preferences')
+      .select('subscription_tier, bookmarks_count')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
 
+    // Handle profile not found or error
     if (profileError) {
       console.error('Profile fetch error:', profileError);
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to fetch user profile' }, { status: 500 });
     }
 
-    const tier = profile?.subscription_tier || 'free';
-
-    // Fetch user's existing bookmark URLs to avoid duplicate recommendations
-    const { data: userBookmarks, error: userBookmarksError } = await supabase
-      .from('bookmarks')
-      .select('url')
-      .eq('user_id', user.id)
-      .is('deleted_at', null);
-
-    if (userBookmarksError) {
-      console.error('User bookmarks fetch error:', userBookmarksError);
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    if (!profile) {
+      console.error('Profile not found for user:', user.id);
+      return NextResponse.json({ error: 'User profile not found' }, { status: 404 });
     }
 
-    const userUrls = new Set((userBookmarks || []).map(b => b.url).filter(Boolean));
-
-    const { data: userTags, error: userTagsError } = await supabase
+    const { data: tags } = await supabase
       .from('tags')
       .select('name')
       .eq('user_id', user.id)
-      .is('deleted_at', null)
-      .limit(20);
+      .is('deleted_at', null);
 
-    if (userTagsError) {
-      console.error('User tags fetch error:', userTagsError);
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-    }
+    const engine = getRecommendationEngine();
 
-    const userTagNames = userTags?.map(t => t.name) || [];
+    const recommendationContext = {
+      userId: user.id,
+      userTier: (profile?.subscription_tier as 'free' | 'pro' | 'team') || 'free',
+      context,
+      userBookmarksCount: profile?.bookmarks_count || 0,
+      userTagNames: tags?.map(t => t.name) || [],
+      userPreferences: query ? { searchQuery: query } : undefined,
+    };
 
-    const { data: rules, error: rulesError } = await supabase
-      .from('recommendation_rules')
-      .select('*')
-      .eq('is_active', true)
-      .order('priority', { ascending: false });
+    const results = await engine.getRecommendations(recommendationContext);
 
-    if (rulesError) {
-      console.error('Rules fetch error:', rulesError);
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-    }
-
-    const tierOrder = { free: 0, pro: 1, team: 2 };
-
-    // Validate user tier and fallback to 'free' if unrecognized
-    // Fallback behavior: unknown tiers are treated as 'free' (tier 0) for safety
-    let currentTierValue: number;
-    if (!Object.prototype.hasOwnProperty.call(tierOrder, tier)) {
-      console.warn(
-        `Unknown subscription_tier "${tier}" for user ${user.id}, ` +
-        `falling back to 'free' tier for recommendation filtering`
-      );
-      currentTierValue = 0; // Treat unknown tier as 'free'
-    } else {
-      currentTierValue = tierOrder[tier as keyof typeof tierOrder];
-    }
-
-    const applicableRules = rules?.filter(rule => {
-      // Skip rules with unrecognized min_tier values
-      if (!Object.prototype.hasOwnProperty.call(tierOrder, rule.min_tier)) {
-        console.warn(`Unknown min_tier "${rule.min_tier}" for rule ${rule.id}, skipping rule`);
-        return false;
-      }
-
-      const minTier = tierOrder[rule.min_tier as keyof typeof tierOrder];
-      return minTier <= currentTierValue;
-    }) || [];
-
-    // Pre-fetch all user recommendations to avoid N+1 queries
-    const { data: allUserRecs, error: allUserRecsError } = await supabase
-      .from('user_recommendations')
-      .select('*')
-      .eq('user_id', user.id);
-
-    if (allUserRecsError) {
-      console.error('All user recommendations fetch error:', allUserRecsError);
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-    }
-
-    const dismissedRuleIds = new Set(
-      (allUserRecs || [])
-        .filter(rec => rec.is_dismissed === true)
-        .map(rec => rec.rule_id)
-    );
-
-    const existingRecsByRuleId = new Map(
-      (allUserRecs || [])
-        .filter(rec => {
-          // TODO: Investigate why clicked_at can be the string 'null' from DB/serialization
-          // and fix at source (schema, type conversion, or API serialization layer)
-
-          // Normalize clicked_at: treat string 'null' as actual null
-          if (rec.clicked_at === 'null') {
-            rec.clicked_at = null;
-          }
-
-          const isNotDismissed = rec.is_dismissed === false;
-          const isNotClicked = rec.clicked_at == null; // Using == null to catch both null and undefined
-          return isNotDismissed && isNotClicked;
-        })
-        .map(rec => [rec.rule_id, rec])
-    );
-
-    const recommendations = [];
-    const newRecsToInsert = [];
-
-    for (const rule of applicableRules) {
-      const conditions = rule.conditions as {
-        triggerActions?: string[];
-        contexts?: string[];
-        minBookmarksCount?: number;
-        requiredTags?: string[];
-        excludedTags?: string[];
-      };
-
-      if (conditions.contexts && !conditions.contexts.includes(context)) {
-        continue;
-      }
-
-      if (conditions.requiredTags && conditions.requiredTags.length > 0) {
-        const hasRequiredTag = conditions.requiredTags.some(tag => userTagNames.includes(tag));
-        if (!hasRequiredTag) {
-          continue;
-        }
-      }
-
-      if (conditions.excludedTags && conditions.excludedTags.length > 0) {
-        const hasExcludedTag = conditions.excludedTags.some(tag => userTagNames.includes(tag));
-        if (hasExcludedTag) {
-          continue;
-        }
-      }
-
-      if (conditions.minBookmarksCount != null && userUrls.size < conditions.minBookmarksCount) {
-        continue;
-      }
-
-      const recContent = rule.recommendations as {
-        url?: string;
-        title: string;
-        description: string;
-        ctaText: string;
-        type: string;
-        impressionsPerUser: number;
-      };
-
-      if (recContent.url && userUrls.has(recContent.url)) {
-        continue;
-      }
-
-      // Check pre-fetched dismissed rules
-      if (dismissedRuleIds.has(rule.id)) {
-        continue;
-      }
-
-      // Check pre-fetched existing recommendations
-      const existingRec = existingRecsByRuleId.get(rule.id);
-      if (existingRec) {
-        recommendations.push(existingRec);
-      } else {
-        // Collect for batch insert
-        newRecsToInsert.push({
-          user_id: user.id,
-          rule_id: rule.id,
-          bookmark_url: recContent.url,
-          title: recContent.title,
-          description: recContent.description,
-          cta_text: recContent.ctaText
-        });
-      }
-
-      if (recommendations.length + newRecsToInsert.length >= limit) {
-        break;
-      }
-    }
-
-    // Batch insert new recommendations
-    if (newRecsToInsert.length > 0) {
-      const { data: insertedRecs, error } = await supabase
-        .from('user_recommendations')
-        .insert(newRecsToInsert)
-        .select();
-
-      if (error) {
-        console.error('Batch insert user_recommendations error:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-      }
-
-      if (insertedRecs) {
-        recommendations.push(...insertedRecs);
-      }
-    }
+    const recommendations = results.map(result => ({
+      ruleId: result.rule.id,
+      ruleName: result.rule.name,
+      score: result.score,
+      reason: result.reason,
+      recommendation: {
+        type: result.recommendation.type,
+        url: result.recommendation.url,
+        title: result.recommendation.title,
+        description: result.recommendation.description,
+        ctaText: result.recommendation.ctaText,
+      },
+    }));
 
     return NextResponse.json({
-      recommendations: recommendations.slice(0, limit),
-      tier
+      recommendations,
+      count: recommendations.length,
     });
   } catch (error) {
-    console.error('User recommendations GET error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('User recommendations error:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch recommendations' },
+      { status: 500 }
+    );
+  }
+}
+
+// Track recommendation events
+export async function POST(request: NextRequest) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    let body;
+    try {
+      body = await request.json();
+    } catch (error) {
+      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+    }
+
+    const { ruleId, eventType, revenueCents: rawRevenueCents = 0 } = body;
+
+    if (!ruleId || !eventType) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    if (!['impression', 'click', 'dismiss', 'conversion'].includes(eventType)) {
+      return NextResponse.json({ error: 'Invalid event type' }, { status: 400 });
+    }
+
+    // Validate revenueCents
+    const revenueCents = Number(rawRevenueCents);
+    if (!Number.isFinite(revenueCents) || revenueCents < 0) {
+      return NextResponse.json({ error: 'Invalid revenueCents' }, { status: 400 });
+    }
+
+    const engine = getRecommendationEngine();
+    await engine.trackEvent(ruleId, user.id, eventType, revenueCents);
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Track event error:', error);
+    return NextResponse.json(
+      { error: 'Failed to track event' },
+      { status: 500 }
+    );
   }
 }
