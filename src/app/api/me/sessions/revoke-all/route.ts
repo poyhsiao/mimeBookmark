@@ -65,23 +65,24 @@ export async function POST(request: NextRequest) {
       console.warn('Unable to extract session_id from current auth session, revoking all sessions');
     }
 
-    // Validate currentAuthSessionId format before using it in the filter
-    const isValidSessionId = currentAuthSessionId && isValidUUIDv4(currentAuthSessionId);
+     // Validate currentAuthSessionId format before using it in the filter
+     const isValidSessionId = currentAuthSessionId && isValidUUIDv4(currentAuthSessionId);
 
-    // Update all sessions except current to inactive.
-    // The OR filter handles two cases:
-    // 1. auth_session_id is NULL (legacy sessions or sessions without auth tracking)
-    // 2. auth_session_id exists but is not the current session (only if validated)
-    const orFilter = isValidSessionId
-      ? `auth_session_id.is.null,auth_session_id.neq.${currentAuthSessionId}`
-      : 'auth_session_id.is.null';
+     // Update all active sessions except current to inactive.
+     // When we can't determine the current session ID, revoke ALL active sessions for this user.
+     // This is a safe fallback - the user will remain logged in due to their valid auth session.
+     let query = supabase
+       .from('sessions')
+       .update({ is_active: false })
+       .eq('user_id', user.id)
+       .eq('is_active', true);
 
-    const { data, error } = await supabase
-      .from('sessions')
-      .update({ is_active: false })
-      .eq('user_id', user.id)
-      .or(orFilter)
-      .select();
+     // Apply auth_session_id exclusion only when session ID is valid
+     if (isValidSessionId) {
+       query = query.neq('auth_session_id', currentAuthSessionId);
+     }
+
+     const { data, error } = await query.select();
 
     if (error) {
       throw error;

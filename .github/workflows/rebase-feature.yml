@@ -122,8 +122,6 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const { github, context } = require('@actions/github');
-
             const branch = '${{ github.event.inputs.branch }}';
             const commitMessage = '${{ steps.commit-message.outputs.commit_message }}';
 
@@ -163,18 +161,18 @@ jobs:
               console.log(`Created PR #${pr.number}`);
             }
 
-            function generatePRBody(branch, commitMessage, prNumber) {
-              const prBadge = prNumber
-                ? 'Updated from: PR #' + prNumber
-                : 'Fresh rebase';
+             function generatePRBody(branch, commitMessage, prNumber) {
+               const prBadge = prNumber
+                 ? 'Updated from: PR #' + prNumber
+                 : 'Fresh rebase';
 
-              return 'Summary\n' + prBadge + '\n\n' +
-                     'Branch: `' + branch + '\n' +
-                     'Base Branch: `main`\n' +
-                     'Commit Message: `' + commitMessage + '\n\n' +
-                     'This PR contains a rebase of the feature branch onto the latest `main` branch.\n\n' +
-                     'Automated by Rebase Feature Branch workflow';
-            }
+               return 'Summary\n' + prBadge + '\n\n' +
+                      'Branch: `' + branch + '`\n' +
+                      'Base Branch: `main`\n' +
+                      'Commit Message: `' + commitMessage + '`\n\n' +
+                      'This PR contains a rebase of the feature branch onto the latest `main` branch.\n\n' +
+                      'Automated by Rebase Feature Branch workflow';
+             }
 
       - name: Rebase Summary
         run: |

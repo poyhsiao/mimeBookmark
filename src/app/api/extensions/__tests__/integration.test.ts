@@ -146,10 +146,10 @@ describe('Extension Integration Tests', () => {
     vi.mocked(createClient).mockResolvedValue(mockSupabase);
   });
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(createClient).mockResolvedValue(mockSupabase);
-  });
+   beforeEach(() => {
+     vi.resetAllMocks();
+     vi.mocked(createClient).mockResolvedValue(mockSupabase);
+   });
 
   afterEach(() => {
     vi.clearAllMocks();
@@ -452,48 +452,64 @@ describe('Extension Integration Tests', () => {
     });
   });
 
-  describe('Metadata Fetching via Extension', () => {
-    test('should fetch metadata for bookmark', async () => {
-      const mockUser = { id: 'test-user-id', email: 'test@example.com' };
-      vi.mocked(mockAuth.getCurrentUser).mockResolvedValue({
-        data: { user: mockUser },
-      });
+   describe('Metadata Fetching via Extension', () => {
+     test('should fetch metadata for bookmark', async () => {
+       const mockUser = { id: 'test-user-id', email: 'test@example.com' };
+       vi.mocked(mockAuth.getCurrentUser).mockResolvedValue({
+         data: { user: mockUser },
+       });
 
-      const request = createMockRequest('http://localhost/api/metadata?url=https://example.com');
-      const response = await MetadataGET(request);
+       const originalFetch = global.fetch;
+       global.fetch = vi.fn().mockResolvedValue(
+         new Response(
+           '<html><head><title>Example</title><meta name="description" content="Example desc"><link rel="icon" href="https://example.com/favicon.ico"></head></html>',
+           { status: 200, headers: { 'content-type': 'text/html' } }
+         )
+       );
+       try {
+         const request = createMockRequest('http://localhost/api/metadata?url=https://example.com');
+         const response = await MetadataGET(request);
 
-      expect(response.status).toBe(200);
-      const data = await response.json();
+         expect(response.status).toBe(200);
+         const data = await response.json();
 
-      expect(data).toHaveProperty('title');
-      expect(data).toHaveProperty('description');
-      expect(data).toHaveProperty('favicon_url');
-    });
+         expect(data).toHaveProperty('title');
+         expect(data).toHaveProperty('description');
+         expect(data).toHaveProperty('favicon_url');
+       } finally {
+         global.fetch = originalFetch;
+       }
+     });
 
-    test('should handle rate limiting on metadata API', async () => {
-      // Make multiple rapid requests to trigger rate limit
-      const mockUser = { id: 'test-user-id', email: 'test@example.com' };
-      vi.mocked(mockAuth.getCurrentUser).mockResolvedValue({
-        data: { user: mockUser },
-      });
+     test('should handle rate limiting on metadata API', async () => {
+       // Make multiple rapid requests to trigger rate limit
+       const mockUser = { id: 'test-user-id', email: 'test@example.com' };
+       vi.mocked(mockAuth.getCurrentUser).mockResolvedValue({
+         data: { user: mockUser },
+       });
 
-      // Create MAX_REQUESTS + 1 requests to exercise the actual limit
-      const requests = Array(MAX_REQUESTS + 1).fill(null).map((_, i) =>
-        createMockRequest(`http://localhost/api/metadata?url=https://example.com/${i}`)
-      );
+       // Create MAX_REQUESTS + 1 requests to exercise the actual limit
+       const requests = Array(MAX_REQUESTS + 1).fill(null).map((_, i) =>
+         createMockRequest(
+           `http://localhost/api/metadata?url=https://example.com/${i}`,
+           'GET',
+           undefined,
+           { headers: { 'x-forwarded-for': '203.0.113.10' } }
+         )
+       );
 
-      const responses = await Promise.all(
-        requests.map((req) => MetadataGET(req))
-      );
+       const responses = await Promise.all(
+         requests.map((req) => MetadataGET(req))
+       );
 
-      // First MAX_REQUESTS should succeed
-      for (let i = 0; i < MAX_REQUESTS; i++) {
-        expect(responses[i].status).toBe(200);
-      }
+       // First MAX_REQUESTS should succeed
+       for (let i = 0; i < MAX_REQUESTS; i++) {
+         expect(responses[i].status).toBe(200);
+       }
 
-      // (MAX_REQUESTS + 1)th request should be rate limited (429)
-      expect(responses[MAX_REQUESTS].status).toBe(429);
-    });
+       // (MAX_REQUESTS + 1)th request should be rate limited (429)
+       expect(responses[MAX_REQUESTS].status).toBe(429);
+     });
   });
 
   describe('Error Handling', () => {

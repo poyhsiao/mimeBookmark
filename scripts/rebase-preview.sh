@@ -11,14 +11,15 @@ if [ -z "$1" ]; then
   exit 1
 fi
 
-BRANCH=$1
+ BRANCH=$1
+set -e
 git fetch origin main > /dev/null 2>&1
 
 echo "Analyzing branch: $BRANCH"
 echo "Base branch: origin/main"
 echo ""
 
-if ! git show-ref --verify refs/origin/$BRANCH > /dev/null 2>&1; then
+if ! git show-ref --verify refs/remotes/origin/$BRANCH > /dev/null 2>&1; then
   echo "Error: Branch '$BRANCH' does not exist on origin"
   exit 1
 fi
