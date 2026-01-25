@@ -1,0 +1,185 @@
+name: Rebase Feature Branch
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Feature branch to rebase (e.g., feature/xxx)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  rebase-and-update-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: Fetch and rebase branch
+        run: |
+          git checkout ${{ github.event.inputs.branch }}
+          if [ $? -ne 0 ]; then
+            echo "Branch '${{ github.event.inputs.branch }}' not found"
+            exit 1
+          fi
+
+          if [[ ! "${{ github.event.inputs.branch }}" =~ ^feature/ ]]; then
+            echo "Branch '${{ github.event.inputs.branch }}' does not start with 'feature/'"
+            echo "This workflow only processes feature branches"
+            exit 1
+          fi
+
+          echo "Rebasing '${{ github.event.inputs.branch }}' onto origin/main..."
+          git fetch origin main
+          git rebase origin/main
+
+          if [ $? -ne 0 ]; then
+            echo "Rebase failed. Please resolve conflicts locally and try again."
+            exit 1
+          fi
+
+      - name: Generate conventional commit message
+        id: commit-message
+        run: |
+          COMMITS=$(git log origin/main..HEAD --oneline --no-decorate)
+
+          if [ -z "$COMMITS" ]; then
+            echo "No new commits to rebase"
+            echo "commit_message=chore: rebase feature branch" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          FEAT_COUNT=$(echo "$COMMITS" | grep -c "^.*feat:" || echo 0)
+          FIX_COUNT=$(echo "$COMMITS" | grep -c "^.*fix:" || echo 0)
+          DOCS_COUNT=$(echo "$COMMITS" | grep -c "^.*docs:" || echo 0)
+          REFACTOR_COUNT=$(echo "$COMMITS" | grep -c "^.*refactor:" || echo 0)
+          CHORE_COUNT=$(echo "$COMMITS" | grep -c "^.*chore:" || echo 0)
+
+          DOMINANT_TYPE="chore"
+          MAX_COUNT=$CHORE_COUNT
+
+          if [ $FEAT_COUNT -gt $MAX_COUNT ]; then
+            DOMINANT_TYPE="feat"
+            MAX_COUNT=$FEAT_COUNT
+          fi
+          if [ $FIX_COUNT -gt $MAX_COUNT ]; then
+            DOMINANT_TYPE="fix"
+            MAX_COUNT=$FIX_COUNT
+          fi
+          if [ $DOCS_COUNT -gt $MAX_COUNT ]; then
+            DOMINANT_TYPE="docs"
+            MAX_COUNT=$DOCS_COUNT
+          fi
+          if [ $REFACTOR_COUNT -gt $MAX_COUNT ]; then
+            DOMINANT_TYPE="refactor"
+            MAX_COUNT=$REFACTOR_COUNT
+          fi
+
+          FEATURE_NAME=$(echo "${{ github.event.inputs.branch }}" | sed 's/^feature\///')
+
+          case $DOMINANT_TYPE in
+            feat)
+              SCOPE="(rebase)"
+              MESSAGE="feat${SCOPE}: ${FEATURE_NAME} - rebase onto main"
+              ;;
+            fix)
+              SCOPE="(rebase)"
+              MESSAGE="fix${SCOPE}: ${FEATURE_NAME} - rebase bug fixes onto main"
+              ;;
+            docs)
+              SCOPE="(rebase)"
+              MESSAGE="docs${SCOPE}: ${FEATURE_NAME} - update documentation via rebase"
+              ;;
+            refactor)
+              SCOPE="(rebase)"
+              MESSAGE="refactor${SCOPE}: ${FEATURE_NAME} - rebase refactored code onto main"
+              ;;
+            *)
+              MESSAGE="chore: ${FEATURE_NAME} - rebase feature branch onto main"
+              ;;
+          esac
+
+          echo "commit_message=$MESSAGE" >> $GITHUB_OUTPUT
+
+      - name: Push rebased branch
+        run: |
+          git push --force-with-lease origin ${{ github.event.inputs.branch }}
+
+      - name: Find or create Pull Request
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { github, context } = require('@actions/github');
+
+            const branch = '${{ github.event.inputs.branch }}';
+            const commitMessage = '${{ steps.commit-message.outputs.commit_message }}';
+
+            const prs = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `${context.repo.owner}:${branch}`,
+              base: 'main',
+              state: 'open'
+            });
+
+            let pr;
+
+            if (prs.data.length > 0) {
+              pr = prs.data[0];
+
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                title: `Rebased: ${branch}`,
+                body: generatePRBody(branch, commitMessage, pr.number),
+              });
+
+              console.log(`Updated PR #${pr.number}`);
+            } else {
+              const result = await github.rest.pulls.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `Rebased: ${branch}`,
+                head: branch,
+                base: 'main',
+                body: generatePRBody(branch, commitMessage, null),
+              });
+
+              pr = result.data;
+              console.log(`Created PR #${pr.number}`);
+            }
+
+            function generatePRBody(branch, commitMessage, prNumber) {
+              const prBadge = prNumber
+                ? 'Updated from: PR #' + prNumber
+                : 'Fresh rebase';
+
+              return 'Summary\n' + prBadge + '\n\n' +
+                     'Branch: `' + branch + '\n' +
+                     'Base Branch: `main`\n' +
+                     'Commit Message: `' + commitMessage + '\n\n' +
+                     'This PR contains a rebase of the feature branch onto the latest `main` branch.\n\n' +
+                     'Automated by Rebase Feature Branch workflow';
+            }
+
+      - name: Rebase Summary
+        run: |
+          echo "Rebase Complete"
+          echo "Branch: ${{ github.event.inputs.branch }}"
+          echo "Base: origin/main"
+          echo "Commit Message: ${{ steps.commit-message.outputs.commit_message }}"
+          echo "Pull Request has been updated or created"
