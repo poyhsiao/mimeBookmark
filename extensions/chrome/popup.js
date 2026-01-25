@@ -95,6 +95,41 @@ async function loadUserData() {
     userInfo = await response.json();
     document.getElementById('userInfo').textContent = userInfo.email || 'Signed in';
 
+    // Send device info to session management (idempotent - backend handles upsert)
+    try {
+      const deviceInfo = await getDeviceInfo();
+      const sessionController = new AbortController();
+      const sessionTimeoutId = setTimeout(() => sessionController.abort(), 10000); // 10 second timeout
+
+      const sessionResponse = await fetch(`${apiUrl}/api/me/sessions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(deviceInfo),
+        signal: sessionController.signal
+      });
+
+      clearTimeout(sessionTimeoutId);
+
+      if (!sessionResponse.ok) {
+        let errorText = '';
+        try {
+          errorText = await sessionResponse.text();
+        } catch (e) {
+          errorText = 'Unable to read response body';
+        }
+        console.error(`Session registration failed: ${sessionResponse.status} ${sessionResponse.statusText} - ${errorText}`);
+      }
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        console.error('Session registration request timed out');
+      } else {
+        console.error('Failed to send device info:', error);
+      }
+    }
+
     await loadCollections(apiUrl, token);
     await loadQuickTags(apiUrl, token);
 
@@ -329,6 +364,32 @@ async function getToken() {
 
 function closePopup() {
   window.close();
+}
+
+async function getDeviceInfo() {
+  const platform = await chrome.runtime.getPlatformInfo();
+  // Prefer navigator.userAgentData?.platform (modern) with fallbacks
+  // Do NOT use chrome.runtime.getManifest().name as a platform identifier
+  const detectedPlatform = navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || 'Unknown Platform';
+  const platformInfo = {
+    device_name: detectedPlatform,
+    device_type: platform.os === 'android' ? 'mobile' : ['win', 'mac', 'linux', 'openbsd', 'cros'].includes(platform.os) ? 'desktop' : 'unknown',
+    platform: platform.os || 'unknown',
+    os: platform.os || 'unknown',
+    user_agent: navigator.userAgent || null,
+  };
+
+  try {
+    // Try to use Chrome's device info API (Chrome 88+)
+    const systemInfo = await chrome.system.cpu.getInfo();
+    if (systemInfo.modelName) {
+      platformInfo.model_name = systemInfo.modelName;
+    }
+  } catch (error) {
+    console.error('Failed to get Chrome system info:', error);
+  }
+
+  return platformInfo;
 }
 
 function openOptions() {

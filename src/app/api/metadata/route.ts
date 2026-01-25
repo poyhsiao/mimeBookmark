@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { fetchMetadata } from '@/lib/metadata/metadata-service';
 import { promises as dnsPromises } from 'dns';
 import { isIP, isIPv4, isIPv6 } from 'net';
-import { checkRateLimit } from './rate-limit';
+import { checkIpRateLimit } from './rate-limit';
 
 // Trusted proxy IPs/CIDRs that can set forwarding headers
 // Comma-separated list of IPs or CIDR ranges (e.g., "103.21.244.0/22,2400:cb00:1::/32")
@@ -306,7 +306,7 @@ export async function GET(request: NextRequest) {
   // Extract client IP for rate limiting using trusted proxy strategy
   const ip = extractClientIp(request);
 
-  if (!checkRateLimit(ip)) {
+  if (!checkIpRateLimit(ip)) {
      return NextResponse.json(
       { error: 'Too many requests' },
       { status: 429 }

@@ -11,10 +11,19 @@ export interface Bookmark {
   domain: string;
   favicon_url: string | null;
   og_image: string | null;
+  og_title: string | null;
+  og_description: string | null;
   is_favorite: boolean;
   is_archived: boolean;
+  is_read_later: boolean;
+  source: string;
+  clicks: number;
+  last_opened_at: string | null;
   created_at: string;
   updated_at: string;
+  user_notes: string | null;
+  user_rating: number | null;
+  collection_id: string | null;
   tags?: Array<{
     id: string;
     name: string;
