@@ -7,11 +7,17 @@ const mockCollection = {
   name: "My Collection",
   description: "Test description",
   color: "#FF0000",
+  icon: "folder",
+  parent_id: null,
+  is_public: false,
+  is_favorite: false,
+  sort_order: 0,
+  bookmarks_count: 5,
+  metadata: {},
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
   user_id: "u1",
-  is_favorite: false,
-  bookmarks_count: 5,
+  deleted_at: null,
 };
 
 test("CollectionCard does not use direct inline styles for dynamic colors", () => {

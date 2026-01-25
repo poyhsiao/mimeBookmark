@@ -36,13 +36,17 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       if (this.props.fallback) {
         return this.props.fallback;
       }
+      const isDev = process.env.NODE_ENV === 'development';
+      const errorMessage = isDev
+        ? this.state.error?.message || 'An unexpected error occurred'
+        : 'An unexpected error occurred';
       return (
         <div className="p-4 border border-red-200 rounded-lg bg-red-50 dark:bg-red-900/20">
           <h2 className="text-lg font-semibold text-red-700 dark:text-red-400">
             Something went wrong
           </h2>
           <p className="mt-2 text-sm text-red-600 dark:text-red-300">
-            {this.state.error?.message || 'An unexpected error occurred'}
+            {errorMessage}
           </p>
           <button
             type="button"

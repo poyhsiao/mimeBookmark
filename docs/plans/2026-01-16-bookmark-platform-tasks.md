@@ -1,9 +1,9 @@
 # 实现计划 - 跨平台书签管理平台
 
-**版本**: 1.1
+**版本**: 1.3
 **基于设计**: 2026-01-16-bookmark-platform-design.md
 **分支**: feature/initial-setup
-**状态**: 部分完成
+**状态**: 大部分完成 (13/14 主要功能)
 
 ---
 
@@ -295,21 +295,31 @@
 ### 10.1 推荐规则管理
 
 - [x] 创建规则管理 API - app/api/recommendations/rules/route.ts (GET/POST)
-- [ ] 实现规则引擎 - 未实现
+- [x] 实现规则引擎 - ✅ src/lib/recommendations/rule-engine.ts
 - [x] 配置推荐展示位置 - ✅ app/api/recommendations/user/route.ts
+- [x] 创建推荐规则数据库表 - ✅ supabase/migrations/20260121_add_recommendations.sql
 
 ### 10.2 推荐展示
 
 - [x] 侧边栏推荐组件 - ✅ components/recommendations/recommendation-sidebar.tsx
-- [ ] 搜索结果推荐 - 未实现
-- [ ] 通知中心推荐 - 未实现
+- [x] 搜索结果推荐 - ✅ components/recommendations/search-recommendations.tsx + API /api/recommendations/search
+- [x] 通知中心推荐 - ✅ components/recommendations/notification-recommendations.tsx
 - [x] 点击追踪 - ✅ app/api/recommendations/user/[id]/click/route.ts + dismiss/route.ts
 
 ### 10.3 推荐分析
 
-- [ ] 展示统计 - 未实现
-- [ ] 点击率分析 - 未实现
-- [ ] 收入追踪 - 未实现
+- [x] 展示统计 - ✅ app/api/recommendations/analytics/route.ts
+- [x] 点击率分析 - ✅ getAnalyticsSummary() 方法
+- [x] 收入追踪 - ✅ 收入追踪集成在 analytics 中
+
+### 10.4 推荐规则引擎
+
+- [x] 上下文匹配 (sidebar, search, notification, bookmark_added, collection_view)
+- [x] 用户层级过滤 (free/pro/team)
+- [x] 书签数量条件
+- [x] 标签过滤 (required/excluded)
+- [x] 时间条件 (timeOfDay, daysOfWeek)
+- [x] 评分算法 - 基于优先级、上下文、标签相关性、时间
 
 ---
 
@@ -320,14 +330,59 @@
 - [x] 创建 Chrome 扩展项目 - ✅ extensions/chrome/manifest.json
 - [x] 实现保存弹窗 - ✅ extensions/chrome/popup.html + popup.js
 - [x] 实现右键菜单 - ✅ extensions/chrome/background.js
-- [ ] 同步已保存书签 - 未实现
+- [x] 同步已保存书签 - ✅ app/api/extensions/sync/route.ts
 
 ### 11.2 扩展功能
 
-- [ ] 批量保存标签页 - 未实现
-- [ ] 快速搜索 - 未实现
+- [x] 批量保存标签页 - ✅ app/api/extensions/batch-save/route.ts
+- [x] 快速搜索 - ✅ app/api/extensions/search/route.ts
 - [x] 键盘快捷键 - ✅ Ctrl+Shift+S / Ctrl+Shift+M
 - [x] 离线支持 - ✅ content-script.js + localStorage 缓存
+
+### 11.3 扩展 API
+
+- [x] 书签同步 API - ✅ POST/GET /api/extensions/sync
+- [x] 批量保存 API - ✅ POST/GET /api/extensions/batch-save
+- [x] 快速搜索 API - ✅ GET /api/extensions/search
+
+### 11.4 扩展安全性
+
+**认证机制**:
+- 使用 Supabase Session Token 认证
+- 扩展通过 `chrome.identity` API 获取用户会话
+- 每个请求在 Authorization header 中携带 Bearer token
+- 服务端通过 `createClient()` 验证 token 有效性
+
+**速率限制** (待实现):
+- 建议方案:
+  - `/api/extensions/sync`: 每用户 60 次/分钟
+  - `/api/extensions/batch-save`: 每用户 30 次/分钟
+  - `/api/extensions/search`: 每用户 120 次/分钟
+  - 超限返回 429 状态码，附带 Retry-After header
+- 实现计划: 使用 Redis 或 Upstash 实现滑动窗口限流
+- 预计完成: M7 Beta 发布前
+
+**扩展验证**:
+- 检查请求 Origin header 匹配扩展 ID
+- 验证 Chrome Extension Manifest V3 签名
+- 生产环境仅接受 Chrome Web Store 发布的扩展请求
+
+**凭证存储**:
+- **重要**: `chrome.storage.local` 不提供加密，不应直接存储敏感令牌
+- 推荐方案1（持久存储）: 使用 Web Crypto API (AES-GCM) 在客户端加密 token
+  - 通过 `crypto.subtle.generateKey()` 生成加密密钥
+  - 密钥存储在 `chrome.storage.local`，加密后的 token 也存储在此
+  - 实现显式密钥轮换机制（每30天或用户重新登录时）
+- 推荐方案2（会话级存储）: 使用 `chrome.storage.session` 存储 token
+  - 浏览器重启后自动清除，降低泄露风险
+  - 适合对安全性要求更高的场景
+- 服务端支持 token 撤销和自动轮换（7天过期）
+- 用户可在设置页面查看和撤销所有活跃会话（待实现 UI）
+
+**验收标准**:
+- 所有扩展 API 端点均需认证 - ✅
+- 速率限制正常工作 - 待实现
+- 无效 token 正确拒绝 - ✅
 
 ---
 
@@ -342,9 +397,16 @@
 
 ### 12.2 移动端优化
 
-- [ ] 响应式布局 - 部分实现
-- [ ] 触摸操作优化 - 部分实现
-- [ ] 性能优化 - 部分实现
+- [x] 响应式布局 - ✅ src/app/layout.tsx viewport + metadata 配置
+- [x] 触摸操作优化 - ✅ src/styles/globals.css 44px touch targets, safe-area-inset
+- [x] 性能优化 - ✅ CSS scroll-behavior, font-display: swap, 减少动画 (prefers-reduced-motion)
+
+### 12.3 PWA 增强
+
+- [x] Viewport 配置 - ✅ src/app/layout.tsx viewport
+- [x] 主题色配置 - ✅ theme_color + CSS 变量
+- [x] Apple Web App 配置 - ✅ metadata.appleWebApp
+- [x] 触摸优化 CSS - ✅ safe-area, touch-target, 移动端按钮尺寸
 
 ---
 
@@ -355,6 +417,7 @@
 - [x] API 端点测试 - 大量测试文件存在
 - [x] 工具函数测试 - lib/*/__tests__/
 - [x] 组件测试 - components/*/__tests__/
+- [x] 推荐规则引擎测试 - ✅ src/lib/recommendations/__tests__/rule-engine.test.ts (16 tests)
 
 ### 集成测试
 
@@ -408,6 +471,6 @@ docker-compose -f docker-compose.monitoring.yml up -d
 
 ---
 
-**文档版本**: 1.1  
-**创建日期**: 2026-01-16  
-**最后更新**: 2026-01-19 (更新 RPC 函数、升级页面、数据保留策略)
+**文档版本**: 1.3
+**创建日期**: 2026-01-16
+**最后更新**: 2026-01-22 (实现浏览器扩展 API、实现推荐系统、添加安全性增强)

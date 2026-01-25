@@ -8,11 +8,22 @@ const mockBookmark = {
   title: "Example",
   description: "Example description",
   domain: "example.com",
+  favicon_url: null,
+  og_image: null,
+  is_archived: false,
   is_favorite: false,
-  tags: [{ id: "t1", name: "Tag 1", color: "#ff0000" }],
+  is_read_later: false,
+  source: 'web' as const,
+  clicks: 0,
+  last_opened_at: null,
+  metadata: {},
+  user_notes: null,
+  user_rating: null,
+  tags: [{ id: "t1", name: "Tag 1", color: "#ff0000", usage_count: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), user_id: "u1", deleted_at: null }],
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
   user_id: "u1",
+  deleted_at: null,
 };
 
 test("BookmarkCard has discernible text for the menu backdrop button", () => {
