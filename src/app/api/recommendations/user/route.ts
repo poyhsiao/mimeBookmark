@@ -101,6 +101,10 @@ export async function POST(request: NextRequest) {
 
     const { ruleId, eventType, revenueCents: rawRevenueCents = 0 } = body;
 
+    if (typeof ruleId !== 'string' || typeof eventType !== 'string') {
+      return NextResponse.json({ error: 'Invalid ruleId or eventType type' }, { status: 400 });
+    }
+
     if (!ruleId || !eventType) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }

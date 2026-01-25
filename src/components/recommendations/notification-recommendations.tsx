@@ -84,6 +84,10 @@ interface NotificationCardProps {
 
 function NotificationCard({ result }: NotificationCardProps) {
   const { recommendation } = result;
+  const safeUrl =
+    recommendation.url && /^(https?:\/\/|\/(?!\/))/.test(recommendation.url)
+      ? recommendation.url
+      : undefined;
   const [isDismissed, setIsDismissed] = useState(false);
   const [hasInteracted, setHasInteracted] = useState(false);
   const { t } = useTranslation();
@@ -106,7 +110,7 @@ function NotificationCard({ result }: NotificationCardProps) {
   };
 
   const handleClick = async (e?: React.MouseEvent) => {
-    if (hasInteracted) return;
+    if (hasInteracted || !safeUrl) return;
     setHasInteracted(true);
 
     // Use sendBeacon for reliable tracking before navigation
@@ -145,13 +149,19 @@ function NotificationCard({ result }: NotificationCardProps) {
           </p>
 
           <div className="flex items-center gap-2 mt-3">
-            {recommendation.url && (
+            {safeUrl && (
               <a
-                href={recommendation.url}
+                href={safeUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                onClick={handleClick}
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (safeUrl) {
+                    window.open(safeUrl, '_blank', 'noopener,noreferrer');
+                    handleClick();
+                  }
+                }}
               >
                 <ExternalLink className="h-3 w-3" />
                 {recommendation.ctaText}

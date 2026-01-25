@@ -14,6 +14,9 @@ DECLARE
   v_limit INT;
   v_count INT;
   v_remaining INT;
+  v_urls_array TEXT[];
+  v_url TEXT;
+  v_count_new INT;
   v_existing_urls TEXT[] := ARRAY[]::TEXT[];
   v_skipped INT := 0;
   v_saved INT := 0;
@@ -21,6 +24,11 @@ DECLARE
 BEGIN
   -- Set safe search_path to prevent search-path injection
   SET LOCAL search_path = public, pg_catalog;
+
+  -- Validate caller identity
+  IF p_user_id != auth.uid() THEN
+    RAISE EXCEPTION 'Cannot insert bookmarks for other users';
+  END IF;
 
   -- Read user's quota
   SELECT bookmarks_limit, bookmarks_count INTO v_limit, v_count
@@ -32,7 +40,10 @@ BEGIN
   v_remaining := GREATEST(0, v_limit - v_count);
 
   -- Convert JSONB URLs to array for processing
-  v_urls_array := ARRAY SELECT (url)::TEXT FROM jsonb_array_elements_text(p_urls);
+  v_urls_array := ARRAY(
+    SELECT (elem->>'url')::TEXT
+    FROM jsonb_array_elements(p_urls) elem
+  );
 
   -- Get existing bookmarks for these URLs (to avoid duplicates)
   FOR i IN 1..array_length(v_urls_array, 1) LOOP
@@ -97,51 +108,47 @@ BEGIN
     RETURN v_result;
   END IF;
 
-  -- Insert new bookmarks
-  INSERT INTO public.bookmarks (user_id, url, title, domain, source, created_at, updated_at)
-  SELECT
-    p_user_id,
-    url,
-    COALESCE(title, url) as title,
-    CASE
-      WHEN url ~ '^https?://' THEN regexp_replace(url, '^https?://([^/]+).*', '\1')
-      ELSE 'unknown'
-    END as domain,
-    'extension' as source,
-    NOW() as created_at,
-    NOW() as updated_at
-  FROM unnest(v_urls_array) WITH ORDINALITY AS t(url, idx)
-  ORDER BY idx
-  ON CONFLICT (user_id, url) DO NOTHING
-  RETURNING id, url, title;
+   WITH inserted AS (
+     INSERT INTO public.bookmarks (user_id, url, title, domain, source, created_at, updated_at)
+     SELECT
+       p_user_id,
+       url,
+       COALESCE(title, url) as title,
+       CASE
+         WHEN url ~ '^https?://' THEN regexp_replace(url, '^https?://([^/]+).*', '\1')
+         ELSE 'unknown'
+       END as domain,
+       'extension' as source,
+       NOW() as created_at,
+       NOW() as updated_at
+     FROM unnest(v_urls_array) WITH ORDINALITY AS t(url, idx)
+     ORDER BY idx
+     ON CONFLICT (user_id, url) DO NOTHING
+     RETURNING id, url, title
+   ), stats AS (
+     SELECT
+       COUNT(*) AS saved,
+       COALESCE(
+         jsonb_agg(jsonb_build_object('id', id, 'url', url, 'title', title)),
+         '[]'::jsonb
+       ) AS bookmarks
+     FROM inserted
+   )
+   SELECT
+     saved,
+     jsonb_build_object(
+       'success', true,
+       'saved', saved,
+       'skipped', v_skipped,
+       'bookmarks', bookmarks,
+       'warnings', jsonb_build_array()
+     )
+   INTO v_saved, v_result
+   FROM stats;
 
-  -- Get inserted bookmarks
-  GET DIAGNOSTICS v_saved = ROW_COUNT;
-
-  -- Return success result
-  v_result := jsonb_build_object(
-    'success', true,
-    'saved', v_saved,
-    'skipped', v_skipped,
-    'bookmarks', (
-      SELECT jsonb_agg(
-        jsonb_build_object(
-          'id', id,
-          'url', url,
-          'title', title
-        )
-      )
-      FROM public.bookmarks
-      WHERE id IN (
-        SELECT id FROM public.bookmarks ORDER BY created_at DESC LIMIT v_saved
-      )
-    ),
-    'warnings', jsonb_build_array()
-  );
-
-  RETURN v_result;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+   RETURN v_result;
+ END;
+ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Grant execute permission to authenticated users
 GRANT EXECUTE ON FUNCTION insert_bookmarks_with_quota_check(UUID, JSONB, UUID, JSONB) TO authenticated;

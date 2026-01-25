@@ -88,6 +88,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No valid tabs provided' }, { status: 400 });
     }
 
+    // Deduplicate tabs by URL to prevent unique-constraint violations
+    const uniqueTabs = Array.from(
+      new Map(validTabs.map((tab: { url: string }) => [tab.url, tab])).values()
+    );
+
     const bookmarksToInsert: Array<{
       user_id: string;
       url: string;
@@ -101,8 +106,8 @@ export async function POST(request: NextRequest) {
       source: 'extension';
     }> = [];
 
-    // Collect URLs from validTabs
-    const urls = validTabs.map((tab: { url: string }) => tab.url);
+    // Collect URLs from uniqueTabs only
+    const urls = uniqueTabs.map((tab: { url: string }) => tab.url);
 
     // Query existing bookmarks for these URLs to deduplicate
     const { data: existingBookmarks, error: existingError } = await supabase
@@ -123,7 +128,7 @@ export async function POST(request: NextRequest) {
     const existingUrls = new Set((existingBookmarks || []).map(b => b.url));
 
     let skippedDuplicates = 0;
-    for (const tab of validTabs) {
+    for (const tab of uniqueTabs) {
       const url = tab.url;
 
       // Skip if already exists

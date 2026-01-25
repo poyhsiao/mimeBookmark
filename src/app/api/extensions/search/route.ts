@@ -18,10 +18,16 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type') || 'all';
 
     if (!query || query.length < 2) {
-      return NextResponse.json({ results: [], suggestions: [] });
+      return NextResponse.json({
+        query,
+        results: [],
+        suggestions: [],
+        count: 0,
+      });
     }
 
-    const searchQuery = escapeLikePattern(query.toLowerCase());
+    const queryTrimmed = query.trim();
+    const searchQuery = escapeLikePattern(queryTrimmed.toLowerCase());
     
     // Deterministic hash function for scoring
     const getHashScore = (id: string, query: string, range: number): number => {
@@ -65,9 +71,8 @@ export async function GET(request: NextRequest) {
 
       if (bookmarks) {
         for (const bookmark of bookmarks) {
-          const lowerQuery = searchQuery.toLowerCase();
-          const titleMatch = bookmark.title?.toLowerCase().includes(lowerQuery) ? 10 : 0;
-          const urlMatch = bookmark.url?.toLowerCase().includes(lowerQuery) ? 5 : 0;
+          const titleMatch = bookmark.title?.toLowerCase().includes(queryTrimmed) ? 10 : 0;
+          const urlMatch = bookmark.url?.toLowerCase().includes(queryTrimmed) ? 5 : 0;
           const deterministicBoost = getHashScore(bookmark.id, query, 3);
           const score = titleMatch + urlMatch + deterministicBoost;
 

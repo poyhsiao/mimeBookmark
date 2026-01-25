@@ -43,6 +43,7 @@ export function SearchRecommendations({
   const { t } = useTranslation();
 
   useEffect(() => {
+    const controller = new AbortController();
     const fetchRecommendations = async () => {
       if (!query || query.length < 2) {
         setRecommendations([]);
@@ -53,7 +54,7 @@ export function SearchRecommendations({
       setIsLoading(true);
       try {
         const response = await fetch(
-          `/api/recommendations/search?query=${encodeURIComponent(query)}&userId=${encodeURIComponent(userId)}`
+          `/api/recommendations/search?query=${encodeURIComponent(query)}`
         );
         if (response.ok) {
           const data = await response.json();
@@ -76,7 +77,9 @@ export function SearchRecommendations({
           }
         }
       } catch (error) {
-        console.error('Failed to fetch recommendations:', error);
+        if ((error as any)?.name !== 'AbortError') {
+          console.error('Failed to fetch recommendations:', error);
+        }
         setRecommendations([]);
       } finally {
         setIsLoading(false);
@@ -87,7 +90,10 @@ export function SearchRecommendations({
       fetchRecommendations();
     }, 300);
 
-    return () => clearTimeout(timer);
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
   }, [query, userId]);
 
   if (isLoading) {

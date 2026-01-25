@@ -68,6 +68,11 @@ export async function POST(request: NextRequest) {
         })
       : [];
 
+    // Deduplicate bookmarks by URL to prevent upsert constraint errors
+    const uniqueBookmarks = Array.from(
+      new Map(validatedBookmarks.map((b: { url: string }) => [b.url, b])).values()
+    );
+
     if (bookmarks && bookmarks.length > 0 && validatedBookmarks.length === 0) {
       return NextResponse.json({ error: 'No valid bookmarks provided' }, { status: 400 });
     }
@@ -94,7 +99,7 @@ export async function POST(request: NextRequest) {
         .from('bookmarks')
         .select('id, url, updated_at, title')
         .eq('user_id', user.id)
-        .in('url', validatedBookmarks.map((b: { url: string }) => b.url));
+        .in('url', uniqueBookmarks.map((b: { url: string }) => b.url));
 
       if (fetchError) {
         console.error('Error fetching existing bookmarks:', fetchError);
@@ -108,7 +113,7 @@ export async function POST(request: NextRequest) {
         (existingBookmarks || []).map((b) => [b.url, b])
       );
 
-      for (const bookmark of validatedBookmarks) {
+      for (const bookmark of uniqueBookmarks) {
         const existing = existingByUrl.get(bookmark.url);
 
         if (existing) {

@@ -27,6 +27,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid end date format' }, { status: 400 });
     }
 
+    if (startDate && endDate && startDate > endDate) {
+      return NextResponse.json(
+        { error: 'startDate must be before endDate' },
+        { status: 400 }
+      );
+    }
+
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('subscription_tier')
@@ -52,12 +59,20 @@ export async function GET(request: NextRequest) {
 
     const analytics = await engine.getAnalyticsSummary(startDate, endDate, user.id);
 
-    const { data: topPerformers } = await supabase
+    const { data: topPerformers, error: topPerformersError } = await supabase
       .from('recommendation_analytics')
       .select('rule_id, event_type, revenue_cents')
       .eq('user_id', user.id)
       .gte('created_at', startDate?.toISOString() || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       .lte('created_at', endDate?.toISOString() || new Date().toISOString());
+
+    if (topPerformersError) {
+      console.error('Error fetching recommendation analytics:', topPerformersError);
+      return NextResponse.json(
+        { error: 'Failed to fetch analytics' },
+        { status: 500 }
+      );
+    }
 
     const rulePerformance: Record<string, { clicks: number; conversions: number; revenue: number }> = {};
     for (const entry of topPerformers || []) {
