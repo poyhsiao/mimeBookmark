@@ -39,32 +39,16 @@ BEGIN
   -- Calculate remaining slots
   v_remaining := GREATEST(0, v_limit - v_count);
 
-  -- Convert JSONB URLs to array for processing
-  v_urls_array := ARRAY(
-    SELECT (elem->>'url')::TEXT
-    FROM jsonb_array_elements(p_urls) elem
-  );
-
-  -- Get existing bookmarks for these URLs (to avoid duplicates)
-  FOR i IN 1..array_length(v_urls_array, 1) LOOP
-    v_url := v_urls_array[i];
-
-    SELECT INTO v_count_new
-      COUNT(*)
-    FROM public.bookmarks
-    WHERE user_id = p_user_id
-    AND url = v_url
+  -- Get existing bookmarks for these URLs (to avoid duplicates) in one query
+  SELECT ARRAY_AGG(url) INTO v_existing_urls
+  FROM public.bookmarks
+  WHERE user_id = p_user_id
+    AND url = ANY(v_urls_array)
     AND deleted_at IS NULL;
 
-    IF v_count_new = 0 THEN
-      -- This URL doesn't exist, we'll insert it later
-      CONTINUE;
-    ELSE
-      -- URL already exists, skip it
-      v_skipped := v_skipped + 1;
-      v_existing_urls := array_append(v_existing_urls, v_url);
-    END IF;
-  END LOOP;
+  v_existing_urls := COALESCE(v_existing_urls, ARRAY[]::TEXT[]);
+  v_skipped := array_length(v_existing_urls, 1);
+  v_skipped := COALESCE(v_skipped, 0);
 
   -- Remove URLs that already exist from the list to insert
   IF array_length(v_urls_array, 1) > 0 THEN
