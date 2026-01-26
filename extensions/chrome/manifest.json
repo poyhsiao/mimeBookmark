@@ -29,7 +29,8 @@
     "activeTab",
     "bookmarks",
     "notifications",
-    "scripting"
+    "scripting",
+    "system.cpu"
   ],
   "host_permissions": [
     "<all_urls>"

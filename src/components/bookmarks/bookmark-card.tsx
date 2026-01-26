@@ -135,7 +135,12 @@ export function BookmarkCard({
 
   return (
     <>
-      <div className='group relative bg-card border rounded-lg p-4 hover:shadow-md transition-shadow'>
+      <div
+        data-testid='bookmark-card'
+        className={`group relative bg-card border rounded-lg p-4 hover:shadow-md transition-shadow ${
+          bookmark.is_archived ? 'opacity-50' : ''
+        }`}
+      >
         <div className='flex items-start gap-3'>
           <div className='flex-shrink-0 w-10 h-10 rounded-lg bg-muted flex items-center justify-center overflow-hidden'>
             {getFaviconDisplay()}
@@ -188,6 +193,7 @@ export function BookmarkCard({
                     size='icon'
                     className='h-8 w-8'
                     onClick={() => setShowMenu(!showMenu)}
+                    aria-label='Open menu'
                   >
                     <MoreHorizontal className='h-4 w-4' />
                   </Button>
@@ -221,6 +227,19 @@ export function BookmarkCard({
               <p className='text-sm text-muted-foreground mt-2 line-clamp-2'>
                 {bookmark.description}
               </p>
+            )}
+
+            {bookmark.user_notes && (
+              <p className='text-sm text-muted-foreground mt-2 line-clamp-2 italic'>
+                Note: {bookmark.user_notes}
+              </p>
+            )}
+
+            {bookmark.user_rating != null && bookmark.user_rating >= 1 && bookmark.user_rating <= 5 && (
+              <div className='flex items-center gap-1 mt-2'>
+                <Star className='h-3 w-3 text-amber-600 fill-none stroke-2' />
+                <span className='text-xs text-muted-foreground'>{bookmark.user_rating}/5</span>
+              </div>
             )}
 
             {bookmark.tags && bookmark.tags.length > 0 && (

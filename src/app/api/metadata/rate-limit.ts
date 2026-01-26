@@ -3,12 +3,12 @@
 export const requestLog = new Map<string, number[]>();
 
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
-const MAX_REQUESTS = 20;
+export const MAX_REQUESTS = 20;
 // Probability of running cleanup on each request (0.05 = 5%)
 // This balances cleanup frequency with request latency in serverless environments
 export const CLEANUP_PROBABILITY = 0.05;
 
-export function checkRateLimit(ip: string): boolean {
+export function checkIpRateLimit(ip: string): boolean {
   const now = Date.now();
   const requests = requestLog.get(ip) || [];
 

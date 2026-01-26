@@ -13,6 +13,7 @@ import {
   Loader2, Upload, Download, FileJson, FileText, CheckCircle,
   User, Palette, Globe, Bell, Trash2, LogOut
 } from 'lucide-react';
+import { SessionsManagement } from './sessions-management';
 
 interface UserSettings {
   displayName: string | null;
@@ -827,6 +828,21 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <LogOut className="h-5 w-5" />
+              Extension Sessions
+            </CardTitle>
+            <CardDescription>
+              Manage your active extension sessions and devices
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SessionsManagement />
           </CardContent>
         </Card>
       </div>
