@@ -7,7 +7,7 @@ test.describe('Login Page', () => {
 
   test('should display login page elements', async ({ page }) => {
     await expect(page.locator('h1')).toContainText('MimeBookmark');
-    await expect(page.locator('text=Your personal bookmark manager')).toBeVisible();
+    await expect(page.locator('p:has-text("Your personal bookmark manager")')).toBeVisible();
     await expect(page.locator('text=Welcome back')).toBeVisible();
   });
 
@@ -32,17 +32,13 @@ test.describe('Login Page', () => {
   });
 
   test('should validate email format on submit', async ({ page }) => {
-    await page.fill('input[type="email"]', 'bad-email');
+    // Fill invalid email but valid password to trigger email validation
+    await page.fill('input[type="email"]', 'invalid-email-format');
+    await page.fill('input[type="password"]', 'password123');
     await page.click('button[type="submit"]');
 
-    // Check for validation error on input
-    const emailInput = page.locator('input[type="email"]');
-    const isValid = await emailInput.evaluate(e => (e as HTMLInputElement).checkValidity());
-    expect(isValid).toBe(false);
-
-    // Or check for error message UI if available
-    const errorMsg = page.locator('text=Invalid email').or(page.locator('[class*="error"]'));
-    await expect(errorMsg.first()).toBeVisible();
+    // Check for validation error message with more specific selector
+    await expect(page.locator('.text-destructive:has-text("Please enter a valid email")')).toBeVisible();
   });
 
   test('should show error for short password', async ({ page }) => {

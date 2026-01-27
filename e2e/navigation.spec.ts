@@ -40,11 +40,12 @@ test.describe('Dashboard - Authenticated', () => {
   test('sidebar should have correct navigation items', async ({ page }) => {
     await page.goto('/dashboard');
 
-    await expect(page.locator('text=Dashboard')).toBeVisible();
-    await expect(page.locator('text=Collections')).toBeVisible();
-    await expect(page.locator('text=Bookmarks')).toBeVisible();
-    await expect(page.locator('text=Tags')).toBeVisible();
-    await expect(page.locator('text=Settings')).toBeVisible();
+    const sidebar = page.locator('aside');
+    await expect(sidebar.locator('text=Dashboard')).toBeVisible();
+    await expect(sidebar.locator('text=Collections')).toBeVisible();
+    await expect(sidebar.locator('text=Bookmarks')).toBeVisible();
+    await expect(sidebar.locator('text=Tags')).toBeVisible();
+    await expect(sidebar.locator('text=Settings')).toBeVisible();
   });
 
   test('sidebar should show user email', async ({ page }) => {
@@ -64,25 +65,27 @@ test.describe('Dashboard - Authenticated', () => {
   });
 
   test('should navigate through all dashboard pages', async ({ page }) => {
+    const sidebar = page.locator('aside');
+
     // Test dashboard home
     await page.goto('/dashboard');
-    await expect(page.locator('text=Dashboard')).toBeVisible();
+    await expect(sidebar.locator('text=Dashboard')).toBeVisible();
 
     // Test collections
     await page.goto('/dashboard/collections');
-    await expect(page.locator('text=Collections')).toBeVisible();
+    await expect(sidebar.locator('text=Collections')).toBeVisible();
 
     // Test bookmarks
     await page.goto('/dashboard/bookmarks');
-    await expect(page.locator('text=Bookmarks')).toBeVisible();
+    await expect(sidebar.locator('text=Bookmarks')).toBeVisible();
 
     // Test tags
     await page.goto('/dashboard/tags');
-    await expect(page.locator('text=Tags')).toBeVisible();
+    await expect(sidebar.locator('text=Tags')).toBeVisible();
 
     // Test settings
     await page.goto('/dashboard/settings');
-    await expect(page.locator('text=Settings')).toBeVisible();
+    await expect(sidebar.locator('text=Settings')).toBeVisible();
   });
 });
 

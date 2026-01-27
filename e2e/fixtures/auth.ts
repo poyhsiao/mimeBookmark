@@ -1,6 +1,55 @@
 import { Page } from '@playwright/test';
 
 /**
+ * Canonical mock session matching Supabase session format exactly
+ * Shared across setupMockAuth and API route mocks to ensure consistency
+ */
+export function createMockSession() {
+  return {
+    access_token: 'mock-access-token-123',
+    refresh_token: 'mock-refresh-token-123',
+    expires_in: 3600,
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    token_type: 'bearer' as const,
+    user: {
+      id: 'test-user-123',
+      email: 'test@example.com',
+      email_confirmed_at: new Date().toISOString(),
+      phone: '',
+      phone_confirmed_at: null,
+      last_sign_in_at: new Date().toISOString(),
+      app_metadata: {
+        provider: 'email',
+        providers: ['email'],
+      },
+      user_metadata: {
+        full_name: 'Test User',
+        email: 'test@example.com',
+      },
+      identities: [
+        {
+          identity_id: 'test-identity-123',
+          id: 'test-user-123',
+          user_id: 'test-user-123',
+          identity_data: {
+            email: 'test@example.com',
+          },
+          provider: 'email',
+          last_sign_in_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      aud: 'authenticated',
+      role: 'authenticated',
+    },
+    session_id: 'test-session-123',
+  };
+}
+
+/**
  * Helper function to authenticate a user in E2E tests
  * This sets up authentication cookies/session on the provided page
  *
@@ -46,24 +95,147 @@ async function performLogin(page: Page, email: string, password: string): Promis
 }
 
 async function setupMockAuth(page: Page): Promise<void> {
-  await page.route('**/api/auth/**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        user: {
-          id: 'test-user-123',
-          email: 'test@example.com',
-        },
-        session: {
-          access_token: 'mock-token-123',
-          refresh_token: 'mock-refresh-123',
-        },
-      }),
-    });
-  });
+  // Get Supabase project ref from environment
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  let projectRef = 'local';
 
-  await page.route(/\/api\/me(?:[/?#]|$)/, async (route) => {
+  if (supabaseUrl) {
+    try {
+      const hostname = new URL(supabaseUrl).hostname;
+      const match = hostname.match(/^([^.]+)\.supabase\.co$/);
+      if (match) {
+        projectRef = match[1];
+      }
+    } catch {
+      // Fallback to 'local'
+    }
+  }
+
+  // Use shared canonical mock session
+  const mockSession = createMockSession();
+
+  // Inject initialization script to set up localStorage BEFORE any page loads
+  // This ensures the Supabase client will find the session on initialization
+  await page.addInitScript(({ projectRef, mockSession }) => {
+    // Set the mock session in localStorage using the exact key format Supabase expects
+    const storageKey = `sb-${projectRef}-auth-token`;
+    localStorage.setItem(storageKey, JSON.stringify(mockSession));
+
+    // Also clear any old keys that might interfere
+    const oldKeys = Object.keys(localStorage);
+    oldKeys.forEach(key => {
+      if (key.startsWith(`sb-${projectRef}-`) && key !== storageKey) {
+        localStorage.removeItem(key);
+      }
+    });
+  }, { projectRef, mockSession });
+
+  // Set cookies for middleware authentication bypass
+  const context = page.context();
+
+  // Derive domain from BASE_URL or default to parsing the base URL
+  const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+  let cookieDomain: string | undefined = undefined;
+
+  try {
+    const urlObj = new URL(baseUrl);
+    // For localhost, omit domain (browser handles it correctly)
+    // For other domains, use hostname without port
+    if (urlObj.hostname !== 'localhost' && urlObj.hostname !== '127.0.0.1') {
+      cookieDomain = urlObj.hostname;
+    }
+    // For localhost, leave undefined to let browser set it automatically
+  } catch {
+    // If URL parsing fails, leave undefined for browser to handle
+    cookieDomain = undefined;
+  }
+
+  await context.addCookies([
+    {
+      name: 'e2e-test-mode',
+      value: 'true',
+      domain: cookieDomain, // undefined for localhost, hostname for other domains
+      path: '/',
+      sameSite: 'Lax' as const,
+    },
+  ]);
+
+  // Set up all API route mocks BEFORE navigation
+  await setupAPIRoute(page);
+}
+
+async function setupAPIRoute(page: Page): Promise<void> {
+  // Mock all /api/me routes
+  await page.route('**/api/me/**', async (route) => {
+    const url = new URL(route.request().url());
+
+    if (url.pathname.endsWith('/settings')) {
+      if (route.request().method() === 'PUT') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            settings: {
+              displayName: 'Test User',
+              avatarUrl: null,
+              timezone: 'UTC',
+              subscriptionTier: 'pro',
+              bookmarksLimit: 10000,
+              collectionsLimit: 100,
+              tagsLimit: 1000,
+              preferences: {
+                theme: 'system',
+                language: 'en',
+                email_notifications: true,
+              },
+            },
+          }),
+        });
+        return;
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          settings: {
+            displayName: 'Test User',
+            avatarUrl: null,
+            timezone: 'UTC',
+            subscriptionTier: 'pro',
+            bookmarksLimit: 10000,
+            collectionsLimit: 100,
+            tagsLimit: 1000,
+            preferences: {
+              theme: 'system',
+              language: 'en',
+              email_notifications: true,
+            },
+          },
+        }),
+      });
+      return;
+    }
+
+    if (url.pathname.endsWith('/stats')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          stats: {
+            totalBookmarks: 100,
+            archivedBookmarks: 10,
+            favoriteBookmarks: 20,
+            readLaterBookmarks: 5,
+            totalCollections: 15,
+            totalTags: 25,
+          },
+        }),
+      });
+      return;
+    }
+
+    // Default /api/me response
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -77,67 +249,77 @@ async function setupMockAuth(page: Page): Promise<void> {
     });
   });
 
-  await page.route('**/*.supabase.co/auth/**', async (route) => {
+  // Mock bookmarks, collections, and tags APIs
+  // Use patterns that match both base paths and subpaths
+  await page.route('**/api/bookmarks', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ bookmarks: [], total: 0 }),
+    });
+  });
+  await page.route('**/api/bookmarks/**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ bookmarks: [], total: 0 }),
+    });
+  });
+
+  await page.route('**/api/collections', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ collections: [], total: 0 }),
+    });
+  });
+  await page.route('**/api/collections/**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ collections: [], total: 0 }),
+    });
+  });
+
+  await page.route('**/api/tags', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ tags: [], total: 0 }),
+    });
+  });
+  await page.route('**/api/tags/**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ tags: [], total: 0 }),
+    });
+  });
+
+  // Use shared canonical mock session for API responses
+  const mockSession = createMockSession();
+
+  // Mock Supabase auth endpoints - must match exact patterns
+  await page.route('**/auth/v1/**', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        event: 'SIGNED_IN',
-        session: {
-          user: {
-            id: 'test-user-123',
-            email: 'test@example.com',
-          },
-          access_token: 'mock-token-123',
+        data: {
+          session: mockSession,
+          user: mockSession.user,
         },
       }),
     });
   });
 
-  // Navigate to the application origin first so localStorage is set on the correct domain
-  await page.goto('/dashboard');
-
-  // Set up client-side auth state in localStorage to match Supabase session format
-  // Extract project ref from NEXT_PUBLIC_SUPABASE_URL to generate correct storage key
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-
-  await page.evaluate((url) => {
-    const mockSession = {
-      access_token: 'mock-token-123',
-      refresh_token: 'mock-refresh-123',
-      expires_in: 3600,
-      expires_at: Math.floor(Date.now() / 1000) + 3600,
-      token_type: 'bearer',
-      user: {
-        id: 'test-user-123',
-        email: 'test@example.com',
-        app_metadata: {},
-        user_metadata: {},
-        aud: 'authenticated',
-        created_at: new Date().toISOString(),
-      },
-    };
-
-    // Extract project ref from Supabase URL (format: https://<project-ref>.supabase.co)
-    let projectRef = 'local';
-    if (url) {
-      try {
-        const hostname = new URL(url).hostname;
-        const match = hostname.match(/^([^.]+)\.supabase\.co$/);
-        if (match) {
-          projectRef = match[1];
-        }
-      } catch {
-        // Fallback to 'local' if URL parsing fails
-      }
-    }
-
-    // Supabase JS v2 uses: sb-<project-ref>-auth-token
-    const storageKey = `sb-${projectRef}-auth-token`;
-    localStorage.setItem(storageKey, JSON.stringify(mockSession));
-  }, supabaseUrl);
-
-  // Reload the page so the app reads the seeded session from localStorage
-  await page.reload();
-  await page.waitForLoadState('networkidle');
+  // Also catch any remaining Supabase requests (including subdomains)
+  // Return standard Supabase response shape to prevent client parsing errors
+  await page.route('**/*supabase.co/**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: null, error: null }),
+    });
+  });
 }

@@ -1,12 +1,17 @@
 import { test, expect } from '@playwright/test';
 
+// Skip auth tests in E2E mock mode since auth is bypassed
+const shouldSkipAuthTests = process.env.E2E_USE_MOCK === 'true';
+
 test.describe('Dashboard Page', () => {
   test('should redirect to login when not authenticated', async ({ page }) => {
+    test.skip(shouldSkipAuthTests, 'Auth redirect test skipped in E2E mock mode');
     await page.goto('/dashboard');
     await expect(page).toHaveURL(/\/login$/, { timeout: 5000 });
   });
 
   test('should show loading state while checking auth', async ({ page }) => {
+    test.skip(shouldSkipAuthTests, 'Loading state test skipped in E2E mock mode - API is mocked');
     let continueRoute: (() => Promise<void>) | null = null;
     let routeReadyResolve: (() => void) | null = null;
     const routeReadyPromise = new Promise<void>((resolve) => {

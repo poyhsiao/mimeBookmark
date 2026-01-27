@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getHostnameFromUrl } from '@/lib/utils/sql-escape';
+import { rateLimiters } from '@/lib/rate-limiter';
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,6 +10,25 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const rateLimitCheck = rateLimiters.sync.check(user.id, 'extensions:sync');
+    if (!rateLimitCheck.allowed) {
+      const retrySeconds = rateLimitCheck.retryAfter ?? 0;
+      const response = NextResponse.json(
+        {
+          error: 'Rate limit exceeded',
+          message: `Too many requests. Please try again after ${retrySeconds} seconds`,
+        },
+        { status: 429 },
+      );
+
+      if (rateLimitCheck.retryAfter) {
+        // retryAfter is already in seconds from rate limiter
+        response.headers.set('Retry-After', retrySeconds.toString());
+      }
+
+      return response;
     }
 
     let body;
@@ -27,7 +47,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing lastSyncTimestamp' }, { status: 400 });
     }
 
-    // Validate timestamp format
     const parsedTimestamp = Date.parse(lastSyncTimestamp);
     if (isNaN(parsedTimestamp)) {
       return NextResponse.json({ error: 'Invalid lastSyncTimestamp' }, { status: 400 });
@@ -50,25 +69,21 @@ export async function POST(request: NextRequest) {
       }>,
     };
 
-    // Validate bookmarks array
     if (bookmarks !== undefined && !Array.isArray(bookmarks)) {
       return NextResponse.json({ error: 'Invalid bookmarks: must be an array' }, { status: 400 });
     }
 
-    // Validate and sanitize bookmarks array items
     const validatedBookmarks = bookmarks && bookmarks.length > 0
       ? bookmarks.filter((b: unknown) => {
           if (!b || typeof b !== 'object') return false;
           const bookmark = b as Record<string, unknown>;
           if (!bookmark.url || typeof bookmark.url !== 'string') return false;
           if (!bookmark.updated_at || typeof bookmark.updated_at !== 'string') return false;
-          // Validate timestamp format
           if (isNaN(Date.parse(bookmark.updated_at as string))) return false;
           return true;
         })
       : [];
 
-    // Deduplicate bookmarks by URL to prevent upsert constraint errors
     const uniqueBookmarks = Array.from(
       new Map(validatedBookmarks.map((b: { url: string }) => [b.url, b])).values()
     );
@@ -77,7 +92,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No valid bookmarks provided' }, { status: 400 });
     }
 
-    // Initialize bookmarksToUpsert outside conditional to avoid scope issues
     const bookmarksToUpsert: Array<{
       id?: string;
       user_id: string;
@@ -117,14 +131,12 @@ export async function POST(request: NextRequest) {
         const existing = existingByUrl.get(bookmark.url);
 
         if (existing) {
-          // Safely parse timestamps
           const localTime = Date.parse(bookmark.updated_at);
           const remoteTime = Date.parse(existing.updated_at || '');
 
           const localUpdated = !isNaN(localTime) ? localTime : 0;
           const remoteUpdated = !isNaN(remoteTime) ? remoteTime : 0;
 
-          // Detect and record malformed remote timestamp as conflict
           if (isNaN(remoteTime)) {
             console.warn('[Sync] Malformed remote timestamp detected:', {
               bookmarkId: existing.id,
@@ -132,18 +144,17 @@ export async function POST(request: NextRequest) {
               localUpdatedAt: bookmark.updated_at,
               remoteUpdatedAt: existing.updated_at,
             });
-            // Record as conflict so client can surface it
             syncResults.conflicts.push({
               type: 'bookmark',
               bookmarkId: existing.id,
               url: bookmark.url,
               localUpdated,
-              remoteUpdated: 0, // Invalid timestamp
+              remoteUpdated: 0,
               userId: user.id,
               localTitle: bookmark.title,
               remoteTitle: existing.title,
             });
-            continue; // Skip this bookmark
+            continue;
           }
 
           if (localUpdated > remoteUpdated) {
@@ -161,7 +172,6 @@ export async function POST(request: NextRequest) {
               source: 'extension',
             });
           } else if (remoteUpdated > localUpdated) {
-            // Record conflict when remote is newer
             syncResults.conflicts.push({
               type: 'bookmark',
               bookmarkId: existing.id,
@@ -173,7 +183,6 @@ export async function POST(request: NextRequest) {
               remoteTitle: existing.title,
             });
           } else {
-            // Timestamps are equal - record as conflict for client to resolve
             syncResults.conflicts.push({
               type: 'bookmark',
               bookmarkId: existing.id,
@@ -202,7 +211,6 @@ export async function POST(request: NextRequest) {
       }
 
       if (bookmarksToUpsert.length > 0) {
-        // Validate that all items have user_id and url
         const validBookmarks = bookmarksToUpsert.filter(b => b.user_id && b.url);
 
         if (validBookmarks.length > 0) {
@@ -223,7 +231,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Collect uploaded URLs to exclude from download
     const uploadedUrls = bookmarksToUpsert.map(b => b.url);
 
     const { data: remoteBookmarks, error: remoteError } = await supabase
@@ -238,13 +245,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Failed to fetch bookmarks' },
         { status: 500 }
-      );
-    }
+        );
+      }
 
-    // Filter out uploaded URLs in JavaScript for safety
     syncResults.downloaded.bookmarks = (remoteBookmarks || []).filter(
       bookmark => !uploadedUrls.includes(bookmark.url)
-    );
+      );
 
     const { data: remoteCollections, error: collectionsError } = await supabase
       .from('collections')
@@ -257,9 +263,9 @@ export async function POST(request: NextRequest) {
       console.error('Error fetching remote collections:', collectionsError);
       return NextResponse.json(
         { error: 'Failed to fetch collections' },
-        { status: 500 }
-      );
-    }
+          { status: 500 }
+        );
+      }
 
     syncResults.downloaded.collections = remoteCollections || [];
 
@@ -274,9 +280,9 @@ export async function POST(request: NextRequest) {
       console.error('Error fetching remote tags:', tagsError);
       return NextResponse.json(
         { error: 'Failed to fetch tags' },
-        { status: 500 }
-      );
-    }
+          { status: 500 }
+        );
+      }
 
     syncResults.downloaded.tags = remoteTags || [];
 
@@ -305,7 +311,6 @@ export async function GET(request: NextRequest) {
 
     const lastSyncTimestamp = request.nextUrl.searchParams.get('since');
 
-    // Validate timestamp if provided
     let validatedTimestamp: string | null = null;
     if (lastSyncTimestamp) {
       const parsedTimestamp = Date.parse(lastSyncTimestamp);
@@ -333,14 +338,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'Failed to fetch bookmarks' },
         { status: 500 }
-      );
+        );
     }
 
     let collectionsQuery = supabase
       .from('collections')
       .select('*')
       .eq('user_id', user.id)
-      .is('deleted_at', null);
+      .is('deleted_at', null)
+      .order('updated_at', { ascending: false });
 
     if (validatedTimestamp) {
       collectionsQuery = collectionsQuery.gt('updated_at', validatedTimestamp);
@@ -353,14 +359,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'Failed to fetch collections' },
         { status: 500 }
-      );
+        );
     }
 
     let tagsQuery = supabase
       .from('tags')
       .select('*')
       .eq('user_id', user.id)
-      .is('deleted_at', null);
+      .is('deleted_at', null)
+      .order('updated_at', { ascending: false });
 
     if (validatedTimestamp) {
       tagsQuery = tagsQuery.gt('updated_at', validatedTimestamp);

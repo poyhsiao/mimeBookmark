@@ -118,7 +118,7 @@ export function CollectionsSection({
   }
 
   return (
-    <div className='space-y-6'>
+    <div className='collections-section space-y-6'>
       {showHeader && (
         <div className='flex flex-col sm:flex-row gap-4'>
           <div className='relative flex-1'>
@@ -155,7 +155,7 @@ export function CollectionsSection({
             </div>
             <Button onClick={() => setShowModal(true)}>
               <Plus className='mr-2 h-4 w-4' />
-              New Collection
+              Add Collection
             </Button>
           </div>
         </div>
@@ -176,7 +176,7 @@ export function CollectionsSection({
               </p>
               <Button className='mt-4' onClick={() => setShowModal(true)}>
                 <Plus className='mr-2 h-4 w-4' />
-                Create your first collection
+                Add Collection
               </Button>
             </div>
           ) : (
@@ -207,7 +207,7 @@ export function CollectionsSection({
               </p>
               <Button className='mt-4' onClick={() => setShowModal(true)}>
                 <Plus className='mr-2 h-4 w-4' />
-                Create your first collection
+                Add Collection
               </Button>
             </>
           )}
