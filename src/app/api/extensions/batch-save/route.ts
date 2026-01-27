@@ -71,6 +71,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing collectionId' }, { status: 400 });
     }
 
+    const { data: collection, error: collectionError } = await supabase
+      .from('collections')
+      .select('id, user_id')
+      .eq('id', collectionId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (collectionError || !collection) {
+      return NextResponse.json(
+        { error: 'Invalid collectionId' },
+        { status: 403 }
+      );
+    }
+
     if (!Array.isArray(tabs)) {
       return NextResponse.json({ error: 'tabs must be an array' }, { status: 400 });
     }

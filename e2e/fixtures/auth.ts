@@ -50,6 +50,12 @@ export function createMockSession() {
   };
 }
 
+export function getSupabaseProjectRef(): string {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const match = supabaseUrl.match(/^([^.]+)\.supabase\.co$/);
+  return match ? match[1] : 'local';
+}
+
 /**
  * Extracts cookie domain from base URL
  * @param baseUrl - Base URL (defaults to BASE_URL env var)
