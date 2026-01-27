@@ -41,6 +41,32 @@ export async function GET(request: NextRequest) {
           .select()
           .maybeSingle();
 
+        // If insert was ignored (race condition - profile already exists),
+        // try to fetch the existing profile as fallback
+        if ((profileError || !newProfile) && !profileError) {
+          const { data: existingProfile, error: fallbackError }: { data: any, error: any } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", user.id)
+            .single();
+
+          if (!fallbackError && existingProfile) {
+            const settings = {
+              displayName: existingProfile.display_name,
+              avatarUrl: existingProfile.avatar_url,
+              timezone: existingProfile.timezone,
+              subscriptionTier: existingProfile.subscription_tier,
+              subscriptionStatus: existingProfile.subscription_status,
+              bookmarksLimit: existingProfile.bookmarks_limit,
+              bookmarksCount: existingProfile.bookmarks_count,
+              collectionsLimit: existingProfile.collections_limit,
+              tagsLimit: existingProfile.tags_limit,
+              preferences: existingProfile.preferences,
+            };
+            return NextResponse.json({ settings });
+          }
+        }
+
         if (profileError || !newProfile) {
           console.error("Failed to auto-create or get profile:", profileError);
           return NextResponse.json(

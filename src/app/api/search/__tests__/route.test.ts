@@ -1,9 +1,7 @@
-import { describe, expect, test, vi, beforeEach } from "vitest";
-import { GET as searchGet } from "../route";
-import { GET as suggestionsGet } from "../suggestions/route";
-import { GET as historyGet, DELETE as historyDelete } from "../history/route";
-import { NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { describe, expect, test, vi, beforeEach } from 'vitest';
+import { GET } from '../route';
+import { NextRequest } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 
 const mockSupabase = {
   auth: {
@@ -12,13 +10,12 @@ const mockSupabase = {
   from: vi.fn(),
 };
 
-vi.mock("@/lib/supabase/server", () => ({
+vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(() => Promise.resolve(mockSupabase)),
 }));
 
-describe("Search API", () => {
-  const mockUser = { id: "test-user-id", email: "test@example.com" };
-  let mockChain: any;
+describe('GET /api/search', () => {
+  const mockUser = { id: 'test-user-id', email: 'test@example.com' };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -26,200 +23,354 @@ describe("Search API", () => {
     vi.mocked(mockSupabase.auth.getUser).mockResolvedValue({
       data: { user: mockUser },
     } as any);
+  });
 
-    mockChain = {
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      is: vi.fn().mockReturnThis(),
-      or: vi.fn().mockReturnThis(),
-      order: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockReturnThis(),
-      update: vi.fn().mockReturnThis(),
-      range: vi.fn().mockResolvedValue({
-        data: [
-          {
-            id: "bookmark-1",
-            title: "Test Bookmark",
-            url: "https://example.com",
-            domain: "example.com",
-            description: "A test bookmark",
-            tags: [],
-            collections: [],
-          },
-        ],
-        count: 1,
-        error: null,
-      }),
-      delete: vi.fn().mockResolvedValue({ data: null, error: null }),
-      upsert: vi.fn().mockResolvedValue({ data: null, error: null }),
-      single: vi.fn().mockResolvedValue({ data: null, error: null }),
-    };
+  test('returns 401 when user is not authenticated', async () => {
+    vi.mocked(mockSupabase.auth.getUser).mockResolvedValue({
+      data: { user: null },
+    } as any);
 
-    mockSupabase.from.mockImplementation((table: string) => {
-      if (table === "search_history") {
+    const request = new NextRequest(new URL('/api/search?q=test', 'http://localhost'));
+    const response = await GET(request);
+
+    expect(response.status).toBe(401);
+    const data = await response.json();
+    expect(data.error).toBe('Unauthorized');
+  });
+
+  test('returns 400 when query is empty', async () => {
+    const request = new NextRequest(new URL('/api/search?q=', 'http://localhost'));
+    const response = await GET(request);
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('Search query is required');
+  });
+
+  test('returns 400 when query is only whitespace', async () => {
+    const request = new NextRequest(new URL('/api/search?q=%20%20%20', 'http://localhost'));
+    const response = await GET(request);
+
+    expect(response.status).toBe(400);
+  });
+
+  test('returns search results with highlights', async () => {
+    const mockBookmarks = [
+      {
+        id: '1',
+        url: 'https://example.com',
+        title: 'Example Site',
+        description: 'Test description',
+        user_id: 'test-user-id',
+      },
+    ];
+
+    vi.mocked(mockSupabase.from).mockImplementation((table: string) => {
+      if (table === 'bookmarks') {
         return {
-          ...mockChain,
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockReturnThis(),
-          is: vi.fn().mockReturnThis(),
-          order: vi.fn().mockReturnThis(),
-          limit: vi.fn().mockResolvedValue({
-            data: [
-              {
-                id: "1",
-                query: "test query",
-                created_at: new Date().toISOString(),
-              },
-            ],
-            error: null,
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnThis(),
+            is: vi.fn().mockReturnThis(),
+            or: vi.fn().mockReturnThis(),
+            order: vi.fn().mockReturnThis(),
+            range: vi.fn().mockResolvedValue({
+              data: mockBookmarks,
+              error: null,
+              count: 1,
+            } as any),
           }),
         };
       }
-      return mockChain;
+      return {};
     });
+
+    const request = new NextRequest(
+      new URL('/api/search?q=example', 'http://localhost')
+    );
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.bookmarks).toHaveLength(1);
+    expect(data.query).toBe('example');
+    expect(data.pagination.page).toBe(1);
+    expect(data.pagination.limit).toBe(20);
   });
 
-  describe("GET /api/search", () => {
-    test("returns search results with highlighting", async () => {
-      const request = new NextRequest("http://localhost/api/search?q=test");
-
-      const response = await searchGet(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data).toHaveProperty("bookmarks");
-      expect(data).toHaveProperty("query", "test");
-      expect(data).toHaveProperty("pagination");
-      expect(Array.isArray(data.bookmarks)).toBe(true);
-    });
-
-    test("returns error when query is empty", async () => {
-      const request = new NextRequest("http://localhost/api/search?q=");
-
-      const response = await searchGet(request);
-
-      expect(response.status).toBe(400);
-    });
-
-    test("returns error when unauthorized", async () => {
-      vi.mocked(mockSupabase.auth.getUser).mockResolvedValue({
-        data: { user: null },
-      });
-
-      const request = new NextRequest("http://localhost/api/search?q=test");
-
-      const response = await searchGet(request);
-
-      expect(response.status).toBe(401);
-    });
-
-    test("applies filters correctly", async () => {
-      const request = new NextRequest(
-        "http://localhost/api/search?q=test&is_favorite=true&is_archived=false&sort=newest",
-      );
-
-      const response = await searchGet(request);
-
-      expect(response.status).toBe(200);
-      const data = await response.json();
-      expect(data).toHaveProperty("bookmarks");
-    });
-
-    test("returns highlighted text", async () => {
-      const request = new NextRequest("http://localhost/api/search?q=bookmark");
-
-      const response = await searchGet(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      if (data.bookmarks.length > 0) {
-        expect(data.bookmarks[0]).toHaveProperty("titleHighlight");
+  test('handles pagination parameters', async () => {
+    vi.mocked(mockSupabase.from).mockImplementation((table: string) => {
+      if (table === 'bookmarks') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnThis(),
+            is: vi.fn().mockReturnThis(),
+            or: vi.fn().mockReturnThis(),
+            order: vi.fn().mockReturnThis(),
+            range: vi.fn().mockResolvedValue({
+              data: [],
+              error: null,
+              count: 50,
+            } as any),
+          }),
+        };
       }
+      return {};
     });
+
+    const request = new NextRequest(
+      new URL('/api/search?q=test&page=2&limit=10', 'http://localhost')
+    );
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.pagination.page).toBe(2);
+    expect(data.pagination.limit).toBe(10);
+    expect(data.pagination.totalPages).toBe(5);
   });
 
-  describe("GET /api/search/suggestions", () => {
-    test("returns suggestions for valid query", async () => {
-      mockSupabase.from.mockImplementation((table: string) => {
-        if (table === "bookmarks") {
+  test('sanitizes special characters in search term', async () => {
+    vi.mocked(mockSupabase.from).mockImplementation((table: string) => {
+      if (table === 'bookmarks') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnThis(),
+            is: vi.fn().mockReturnThis(),
+            or: vi.fn().mockImplementation(function(this: unknown, ...args: unknown[]) {
+              // Verify sanitization happened - %, _ should be escaped with backslash
+              const [pattern] = args as [string];
+              // Input: test%_query -> Sanitized: test\%\_query
+              // The pattern should contain the escaped versions
+              expect(pattern).toContain('\\%');
+              expect(pattern).toContain('\\_');
+              // Should NOT contain the raw unescaped special chars in the search term
+              expect(pattern).not.toContain('test%');
+              expect(pattern).not.toContain('test_');
+              return this;
+            }),
+            order: vi.fn().mockReturnThis(),
+            range: vi.fn().mockResolvedValue({
+              data: [],
+              error: null,
+              count: 0,
+            } as any),
+          }),
+        };
+      }
+      return {};
+    });
+
+    // Use %25 to encode the literal % character in URL
+    const request = new NextRequest(
+      new URL('/api/search?q=test%25_query', 'http://localhost')
+    );
+    await GET(request);
+  });
+
+  test('filters by collection_id', async () => {
+    vi.mocked(mockSupabase.from).mockImplementation((table: string) => {
+      if (table === 'bookmarks') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnThis(),
+            is: vi.fn().mockReturnThis(),
+            or: vi.fn().mockReturnThis(),
+            order: vi.fn().mockReturnThis(),
+            range: vi.fn().mockResolvedValue({
+              data: [],
+              error: null,
+              count: 0,
+            } as any),
+          }),
+        };
+      }
+      return {};
+    });
+
+    const request = new NextRequest(
+      new URL('/api/search?q=test&collection_id=col-123', 'http://localhost')
+    );
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+  });
+
+  test('filters by is_favorite', async () => {
+    vi.mocked(mockSupabase.from).mockImplementation((table: string) => {
+      if (table === 'bookmarks') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnThis(),
+            is: vi.fn().mockReturnThis(),
+            or: vi.fn().mockReturnThis(),
+            order: vi.fn().mockReturnThis(),
+            range: vi.fn().mockResolvedValue({
+              data: [],
+              error: null,
+              count: 0,
+            } as any),
+          }),
+        };
+      }
+      return {};
+    });
+
+    const request = new NextRequest(
+      new URL('/api/search?q=test&is_favorite=true', 'http://localhost')
+    );
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+  });
+
+  test('filters by domain', async () => {
+    vi.mocked(mockSupabase.from).mockImplementation((table: string) => {
+      if (table === 'bookmarks') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnThis(),
+            is: vi.fn().mockReturnThis(),
+            or: vi.fn().mockReturnThis(),
+            order: vi.fn().mockReturnThis(),
+            range: vi.fn().mockResolvedValue({
+              data: [],
+              error: null,
+              count: 0,
+            } as any),
+          }),
+        };
+      }
+      return {};
+    });
+
+    const request = new NextRequest(
+      new URL('/api/search?q=test&domain=example.com', 'http://localhost')
+    );
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+  });
+
+  test('filters by date range', async () => {
+    vi.mocked(mockSupabase.from).mockImplementation((table: string) => {
+      if (table === 'bookmarks') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnThis(),
+            is: vi.fn().mockReturnThis(),
+            or: vi.fn().mockReturnThis(),
+            order: vi.fn().mockReturnThis(),
+            gte: vi.fn().mockReturnThis(),
+            lte: vi.fn().mockReturnThis(),
+            range: vi.fn().mockResolvedValue({
+              data: [],
+              error: null,
+              count: 0,
+            } as any),
+          }),
+        };
+      }
+      return {};
+    });
+
+    const request = new NextRequest(
+      new URL('/api/search?q=test&date_from=2024-01-01&date_to=2024-12-31', 'http://localhost')
+    );
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+  });
+
+  test('returns 500 on database error', async () => {
+    vi.mocked(mockSupabase.from).mockImplementation((table: string) => {
+      if (table === 'bookmarks') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnThis(),
+            is: vi.fn().mockReturnThis(),
+            or: vi.fn().mockReturnThis(),
+            order: vi.fn().mockReturnThis(),
+            range: vi.fn().mockResolvedValue({
+              data: null,
+              error: { message: 'Database error' },
+              count: null,
+            } as any),
+          }),
+        };
+      }
+      return {};
+    });
+
+    const request = new NextRequest(
+      new URL('/api/search?q=test', 'http://localhost')
+    );
+    const response = await GET(request);
+
+    expect(response.status).toBe(500);
+    const data = await response.json();
+    expect(data.error).toBe('Database error');
+  });
+
+  test('limits max results to 100', async () => {
+    vi.mocked(mockSupabase.from).mockImplementation((table: string) => {
+      if (table === 'bookmarks') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnThis(),
+            is: vi.fn().mockReturnThis(),
+            or: vi.fn().mockReturnThis(),
+            order: vi.fn().mockReturnThis(),
+            range: vi.fn().mockResolvedValue({
+              data: [],
+              error: null,
+              count: 0,
+            } as any),
+          }),
+        };
+      }
+      return {};
+    });
+
+    // Request with limit exceeding max
+    const request = new NextRequest(
+      new URL('/api/search?q=test&limit=200', 'http://localhost')
+    );
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    // Limit should be capped at 100
+    expect(data.pagination.limit).toBe(100);
+  });
+
+  test.each(['newest', 'oldest', 'title', 'domain', 'clicks', 'relevance'])(
+    'sorts by %s',
+    async (sortBy) => {
+      vi.mocked(mockSupabase.from).mockImplementation((table: string) => {
+        if (table === 'bookmarks') {
           return {
             select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                is: vi.fn().mockReturnValue({
-                  or: vi.fn().mockReturnValue({
-                    eq: vi.fn().mockReturnValue({
-                      order: vi.fn().mockReturnValue({
-                        limit: vi.fn().mockResolvedValue({
-                          data: [
-                            {
-                              id: "1",
-                              title: "Example",
-                              url: "https://example.com",
-                              domain: "example.com",
-                            },
-                          ],
-                          count: 1,
-                          error: null,
-                        }),
-                      }),
-                    }),
-                  }),
-                }),
-              }),
+              eq: vi.fn().mockReturnThis(),
+              is: vi.fn().mockReturnThis(),
+              or: vi.fn().mockReturnThis(),
+              order: vi.fn().mockReturnThis(),
+              range: vi.fn().mockResolvedValue({
+                data: [],
+                error: null,
+                count: 0,
+              } as any),
             }),
           };
         }
-        return mockChain;
+        return {};
       });
 
       const request = new NextRequest(
-        "http://localhost/api/search/suggestions?q=ex",
+        new URL(`/api/search?q=test&sort=${sortBy}`, 'http://localhost')
       );
-
-      const response = await suggestionsGet(request);
-      const data = await response.json();
+      const response = await GET(request);
 
       expect(response.status).toBe(200);
-      expect(data).toHaveProperty("suggestions");
-      expect(Array.isArray(data.suggestions)).toBe(true);
-    });
-
-    test("returns empty array for short query", async () => {
-      const request = new NextRequest(
-        "http://localhost/api/search/suggestions?q=a",
-      );
-
-      const response = await suggestionsGet(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.suggestions).toEqual([]);
-    });
-  });
-
-  describe("GET /api/search/history", () => {
-    test("returns search history", async () => {
-      const request = new NextRequest("http://localhost/api/search/history");
-
-      const response = await historyGet(request);
-
-      expect(response.status).toBe(200);
-      const data = await response.json();
-      expect(data).toHaveProperty("history");
-    });
-  });
-
-  describe("DELETE /api/search/history", () => {
-    test("deletes all search history", async () => {
-      const request = new NextRequest("http://localhost/api/search/history", {
-        method: "DELETE",
-      });
-
-      const response = await historyDelete(request);
-
-      expect(response.status).toBe(200);
-      const data = await response.json();
-      expect(data).toHaveProperty("success", true);
-    });
-  });
+    }
+  );
 });

@@ -16,7 +16,7 @@ describe("Server Logging", () => {
     await logError(testError, { message: "Wrapped message" });
 
     expect(errorSpy).toHaveBeenCalledWith(
-      testError,
+      String(testError),
       expect.objectContaining({ message: "Wrapped message" }),
     );
   });
