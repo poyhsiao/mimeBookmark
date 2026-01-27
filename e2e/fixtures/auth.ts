@@ -230,30 +230,7 @@ async function mockTagEndpoints(page: Page) {
   await page.route('**/api/tags/**', fulfillEmptyTags);
 }
 
-/**
- * Gets Supabase project reference from environment
- * @returns Supabase project ref
- */
-export function getSupabaseProjectRef(): string {
-  return process.env.NEXT_PUBLIC_SUPABASE_PROJECT_REF || 'test-project';
-}
 
-/**
- * Extracts cookie domain from base URL
- * @param baseUrl - Base URL (defaults to BASE_URL env var)
- * @returns Cookie domain for non-localhost URLs, undefined for localhost
- */
-export function getCookieDomain(baseUrl = process.env.BASE_URL || 'http://localhost:3000') {
-  try {
-    const urlObj = new URL(baseUrl);
-    if (urlObj.hostname !== 'localhost' && urlObj.hostname !== '127.0.0.1') {
-      return urlObj.hostname;
-    }
-  } catch {
-    // fall through
-  }
-  return undefined;
-}
 
 /**
  * Sets up mock authentication for E2E tests
