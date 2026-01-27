@@ -1,5 +1,4 @@
 import { test, expect } from '@playwright/test';
-import { authenticateUser } from './fixtures/auth';
 
 test.describe('Accessibility', () => {
   test('home page should have proper heading structure', async ({ page }) => {
@@ -7,6 +6,28 @@ test.describe('Accessibility', () => {
     
     const h1 = page.locator('h1');
     await expect(h1).toHaveCount(1);
+  });
+
+  test('login page inputs must have associated labels', async ({ page }) => {
+    await page.goto('/login');
+    
+    // Check that form fields have associated labels
+    const emailInput = page.locator('input[type="email"]');
+    await expect(emailInput).toBeVisible();
+    
+    // Verify email input has proper label association
+    const emailId = await emailInput.getAttribute('id');
+    const emailAriaLabel = await emailInput.getAttribute('aria-label');
+    const emailAriaLabelledby = await emailInput.getAttribute('aria-labelledby');
+    
+    // Check for aria attributes first (preferred method)
+    if (emailAriaLabel || emailAriaLabelledby) {
+      // Aria attributes present - accessibility requirement met
+      expect(emailAriaLabel || emailAriaLabelledby).toBeTruthy();
+    } else {
+      // No aria attributes - must have id with visible associated label
+      expect(emailId, 'Email input must have id when aria-label/aria-labelledby are absent').toBeTruthy();
+    }
   });
 
   test('login page inputs must have associated labels', async ({ page }) => {

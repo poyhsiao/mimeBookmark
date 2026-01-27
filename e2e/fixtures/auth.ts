@@ -119,14 +119,11 @@ async function setupTestCookies(page: Page, cookieDomain: string | undefined) {
     {
       name: 'e2e-test-mode',
       value: 'true',
-      domain: cookieDomain, // undefined for localhost, hostname for other domains
+      domain: cookieDomain,
       path: '/',
       sameSite: 'Lax' as const,
     },
   ]);
-
-  // Set up all API route mocks BEFORE navigation
-  await setupAPIRoutes(page, mockSession);
 }
 
 /**
@@ -284,95 +281,7 @@ async function setupAPIRoutes(page: Page, mockSession: ReturnType<typeof createM
   await mockSupabaseAuth(page, mockSession);
 }
 
-/**
- * Helper function to authenticate a user in E2E tests
- * This sets up authentication cookies/session on the provided page
- *
- * For CI/CD environments without real credentials, use mock authentication
- * by setting E2E_USE_MOCK=true
- */
-export async function authenticateUser(page: Page): Promise<void> {
-  // Check for mock authentication mode
-  if (process.env.E2E_USE_MOCK === 'true') {
-    await setupMockAuth(page);
-    return;
-  }
 
-  // Validate required environment variables
-  const email = process.env.E2E_TEST_EMAIL;
-  const password = process.env.E2E_TEST_PASSWORD;
-
-  if (!email || !password) {
-    throw new Error(
-      'Missing required environment variables: E2E_TEST_EMAIL and E2E_TEST_PASSWORD must be set. ' +
-      'Alternatively, set E2E_USE_MOCK=true for mock authentication in development.'
-    );
-  }
-
-  await performLogin(page, email, password);
-}
-
-async function performLogin(page: Page, email: string, password: string): Promise<void> {
-  await page.goto('/login');
-
-  const emailInput = page.locator('input[type="email"]');
-  const passwordInput = page.locator('input[type="password"]');
-
-  await emailInput.waitFor({ state: 'visible', timeout: 10000 });
-  await passwordInput.waitFor({ state: 'visible', timeout: 10000 });
-
-  await emailInput.fill(email);
-  await passwordInput.fill(password);
-
-  await page.click('button[type="submit"]');
-
-  await page.waitForURL(/.*dashboard.*/, { timeout: 10000 });
-}
-
-/**
- * Helper function to authenticate a user in E2E tests
- * This sets up authentication cookies/session on the provided page
- *
- * For CI/CD environments without real credentials, use mock authentication
- * by setting E2E_USE_MOCK=true
- */
-export async function authenticateUser(page: Page): Promise<void> {
-  // Check for mock authentication mode
-  if (process.env.E2E_USE_MOCK === 'true') {
-    await setupMockAuth(page);
-    return;
-  }
-
-  // Validate required environment variables
-  const email = process.env.E2E_TEST_EMAIL;
-  const password = process.env.E2E_TEST_PASSWORD;
-
-  if (!email || !password) {
-    throw new Error(
-      'Missing required environment variables: E2E_TEST_EMAIL and E2E_TEST_PASSWORD must be set. ' +
-      'Alternatively, set E2E_USE_MOCK=true for mock authentication in development.'
-    );
-  }
-
-  await performLogin(page, email, password);
-}
-
-async function performLogin(page: Page, email: string, password: string): Promise<void> {
-  await page.goto('/login');
-
-  const emailInput = page.locator('input[type="email"]');
-  const passwordInput = page.locator('input[type="password"]');
-
-  await emailInput.waitFor({ state: 'visible', timeout: 10000 });
-  await passwordInput.waitFor({ state: 'visible', timeout: 10000 });
-
-  await emailInput.fill(email);
-  await passwordInput.fill(password);
-
-  await page.click('button[type="submit"]');
-
-  await page.waitForURL(/.*dashboard.*/, { timeout: 10000 });
-}
 
 async function setupMockAuth(page: Page): Promise<void> {
   const projectRef = getSupabaseProjectRef();
@@ -382,10 +291,6 @@ async function setupMockAuth(page: Page): Promise<void> {
   await setupTestCookies(page, getCookieDomain());
   await setupAPIRoutes(page, mockSession);
 }
-    } catch {
-      // Fallback to 'local'
-    }
-  }
 
   // Use shared canonical mock session
   const mockSession = createMockSession();

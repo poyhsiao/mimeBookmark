@@ -16,7 +16,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Rate limit check - moved immediately after authentication
     const rateLimitCheck = rateLimiters.batchSave.check(user.id, 'extensions:batchSave') as RateLimitResult;
     if (!rateLimitCheck.allowed) {
       const response = NextResponse.json(
@@ -28,14 +27,12 @@ export async function POST(request: NextRequest) {
       );
 
       if (rateLimitCheck.retryAfter) {
-        // retryAfter is already in seconds from rate limiter
         response.headers.set('Retry-After', rateLimitCheck.retryAfter.toString());
       }
 
       return response;
     }
 
-    // Parse and validate request body with error handling
     let collectionId: string;
     let tags: string[] | undefined;
     let tabs: Array<{ url: string; title?: string; favicon?: string }>;
@@ -50,25 +47,6 @@ export async function POST(request: NextRequest) {
         );
       }
       throw err;
-    }
-      // Re-throw other errors to be caught by the outer try-catch
-      throw error;
-    }
-
-    // Fixed validation error messages
-    if (!collectionId && !Array.isArray(tabs)) {
-      return NextResponse.json(
-        { error: 'Missing collectionId and tabs must be an array' },
-        { status: 400 }
-      );
-    }
-
-    if (!collectionId) {
-      return NextResponse.json({ error: 'Missing collectionId' }, { status: 400 });
-    }
-
-    if (!Array.isArray(tabs)) {
-      return NextResponse.json({ error: 'tabs must be an array' }, { status: 400 });
     }
 
     const { data: profile, error: profileError } = await supabase
@@ -89,6 +67,14 @@ export async function POST(request: NextRequest) {
     const count = Number(profile.bookmarks_count ?? 0);
     const remainingSlots = Math.max(0, limit - count);
 
+    if (!collectionId) {
+      return NextResponse.json({ error: 'Missing collectionId' }, { status: 400 });
+    }
+
+    if (!Array.isArray(tabs)) {
+      return NextResponse.json({ error: 'tabs must be an array' }, { status: 400 });
+    }
+
     let bookmarksToInsert: BookmarkToInsert[];
     let skippedDuplicates = 0;
 
@@ -106,7 +92,6 @@ export async function POST(request: NextRequest) {
 
     const urls = bookmarksToInsert.map(b => b.url);
 
-    // Query existing bookmarks for these URLs to deduplicate
     const { data: existingBookmarks, error: existingError } = await supabase
       .from('bookmarks')
       .select('url')
@@ -123,8 +108,6 @@ export async function POST(request: NextRequest) {
     }
 
     const existingUrls = new Set((existingBookmarks || []).map(b => b.url));
-
-    const urlsToInsert = bookmarksToInsert.map(b => b.url);
     let skippedDuplicates = 0;
 
     for (const bookmark of bookmarksToInsert) {
@@ -133,65 +116,9 @@ export async function POST(request: NextRequest) {
         continue;
       }
     }
-    });
 
-    // Check if there are any valid tabs
-    if (validTabs.length === 0) {
-      return NextResponse.json({ error: 'No valid tabs provided' }, { status: 400 });
-    }
-
-    // Deduplicate URLs within the batch to prevent upsert conflicts
     const uniqueTabs = Array.from(new Map(validTabs.map(tab => [tab.url, tab])).values());
 
-    // Initialize sync results
-    const syncResults = {
-      uploaded: { bookmarks: 0, collections: 0, tags: 0 },
-      downloaded: {
-        bookmarks: [] as Array<Record<string, unknown>>,
-        collections: [] as Array<Record<string, unknown>>,
-        tags: [] as Array<Record<string, unknown>>
-      },
-    };
-
-    type BookmarkToInsert = {
-      user_id: string;
-      url: string;
-      title: string;
-      description?: string;
-      domain: string;
-      favicon_url?: string;
-      og_image?: string;
-      og_title?: string;
-      og_description?: string;
-      source: 'extension';
-      collection_id?: string;
-    };
-    const bookmarksToInsert: BookmarkToInsert[] = [];
-
-    // Collect URLs from uniqueTabs only
-    const urls = uniqueTabs.map((tab: { url: string }) => tab.url);
-
-    // Query existing bookmarks for these URLs to deduplicate
-    const { data: existingBookmarks, error: existingError } = await supabase
-      .from('bookmarks')
-      .select('url')
-      .eq('user_id', user.id)
-      .in('url', urls)
-      .is('deleted_at', null);
-
-    if (existingError) {
-      console.error('Error fetching existing bookmarks:', existingError);
-      return NextResponse.json(
-        { error: 'Failed to check for existing bookmarks' },
-        { status: 500 }
-      );
-    }
-
-    const existingUrls = new Set((existingBookmarks || []).map(b => b.url));
-    let skippedDuplicates = 0;
-
-    // Hoisted upserted variable
-    // Type includes id and other DB fields returned by .select()
     type UpsertedBookmark = BookmarkToInsert & {
       id: string;
       created_at: string;
@@ -207,26 +134,6 @@ export async function POST(request: NextRequest) {
     };
     let upserted: UpsertedBookmark[] = [];
 
-    for (const tab of uniqueTabs) {
-      const url = tab.url;
-
-      if (existingUrls.has(url)) {
-        skippedDuplicates++;
-        continue;
-      }
-
-      const domain = getHostnameFromUrl(url, 'unknown');
-      bookmarksToInsert.push({
-        user_id: user.id,
-        url,
-        title: tab.title || url,
-        domain,
-        favicon_url: tab.favicon,
-        source: 'extension',
-        collection_id: collectionId,
-      });
-    }
-
     if (bookmarksToInsert.length === 0) {
       return NextResponse.json({
         success: true,
@@ -237,16 +144,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Capture timestamp BEFORE upsert for querying remote changes
-    // This allows us to detect concurrent changes from other clients
     const validatedTimestamp = new Date().toISOString();
 
     const syncResults: SyncResults = {
       uploaded: { bookmarks: 0, collections: 0, tags: 0 },
       downloaded: {
-        bookmarks: [],
-        collections: [],
-        tags: [],
+        bookmarks: [] as Array<Record<string, unknown>>,
+        collections: [] as Array<Record<string, unknown>>,
+        tags: [] as Array<Record<string, unknown>>
       },
     };
 
@@ -265,7 +170,8 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         );
       }
-      const upserted = upsertedData || [];
+
+      upserted = upsertedData || [];
       syncResults.uploaded.bookmarks = upserted.length;
 
       if (tags && upserted.length > 0) {

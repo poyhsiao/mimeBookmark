@@ -26,7 +26,7 @@ export async function createServerSupabase() {
 }
 
 export async function getCurrentUser() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
 
   // Check for E2E test mode - requires BOTH env var AND cookie (restricted to non-production environments)
   const e2eTestModeCookie = cookieStore.get('e2e-test-mode');

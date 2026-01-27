@@ -1,11 +1,52 @@
 import { test, expect } from '@playwright/test';
-import { authenticateUser } from './fixtures/auth';
 
 test.describe('Navigation and Sidebar', () => {
   test.beforeEach(async ({ page }) => {
-    // Start from home page
     await page.goto('/');
   });
+
+  test('should navigate from home to login', async ({ page }) => {
+    await page.click('text=Sign In');
+    await expect(page).toHaveURL(/\/login$/);
+  });
+
+  test('should navigate from home to register', async ({ page }) => {
+    await page.goto('/');
+    await page.click('text=Sign up');
+    await expect(page).toHaveURL(/\/register$/);
+  });
+
+  test('should navigate from register to login', async ({ page }) => {
+    await page.goto('/register');
+    await page.click('text=Sign in');
+    await expect(page).toHaveURL(/\/login$/);
+  });
+
+  test('should navigate from register to login', async ({ page }) => {
+    await page.goto('/register');
+    await page.click('text=Sign in');
+    await expect(page).toHaveURL(/\/login$/);
+  });
+
+  test.describe('Dashboard - Authenticated', () => {
+    test.beforeEach(async ({ page }) => {
+      await page.goto('/dashboard');
+    });
+
+    test('sidebar should be visible on dashboard pages', async ({ page }) => {
+      await page.goto('/dashboard');
+      
+      const sidebar = page.locator('aside').first();
+      await expect(sidebar).toBeVisible();
+      
+      await expect(sidebar.locator('text=Dashboard')).toBeVisible();
+      await expect(sidebar.locator('text=Collections')).toBeVisible();
+      await expect(sidebar.locator('text=Bookmarks')).toBeVisible();
+      await expect(sidebar.locator('text=Tags')).toBeVisible();
+      await expect(sidebar.locator('text=Settings')).toBeVisible();
+    });
+  });
+});
 
   test('should navigate from home to login', async ({ page }) => {
     await page.click('text=Sign In');
