@@ -201,7 +201,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      saved: bookmarksToInsert.length,
+      saved: upserted.length,
       skipped: skippedDuplicates,
       bookmarks: upserted,
       syncResults,
