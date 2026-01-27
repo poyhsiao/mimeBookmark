@@ -44,9 +44,9 @@ test.describe('Collections Page', () => {
       const hasCollections = count > 0;
 
       await expect(collectionCards).toHaveCount(hasCollections ? 1 : 0);
-    });
+      });
   });
-});
+  });
 
   test('should display page title', async ({ page }) => {
     await expect(page.locator('h1')).toContainText('Collections');

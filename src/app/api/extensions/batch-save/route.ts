@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      upserted = upsertedData || [];
+      upserted = upsertedData || []
       syncResults.uploaded.bookmarks = upserted.length;
 
       if (tags && upserted.length > 0) {

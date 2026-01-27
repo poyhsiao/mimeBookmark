@@ -47,5 +47,5 @@ export function buildBookmarksToInsert(
     throw e;
   }
 
-  return { bookmarksToInsert, validTabs };
+  return { bookmarksToInsert, uniqueTabs };
 }

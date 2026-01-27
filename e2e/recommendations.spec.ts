@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { authenticateUser } from './fixtures/auth';
 
 test.describe('API Security - Authentication', () => {
   test('sync API requires authentication', async ({ page }) => {

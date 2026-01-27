@@ -38,7 +38,7 @@ test.describe('Bookmarks Page', () => {
       });
     });
 
-    const emptyMessage = page.locator('text=No bookmarks yet').or(page.locator('text="You have no bookmarks yet."').first();
+    const emptyMessage = page.locator('text=No bookmarks yet').or(page.locator('text="You have no bookmarks yet."')).first();
     await expect(emptyMessage).toBeVisible();
   });
 });

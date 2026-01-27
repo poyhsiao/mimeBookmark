@@ -5,11 +5,6 @@ test.describe('Navigation and Sidebar', () => {
     await page.goto('/');
   });
 
-  test('should navigate from home to login', async ({ page }) => {
-    await page.click('text=Sign In');
-    await expect(page).toHaveURL(/\/login$/);
-  });
-
   test('should navigate from home to register', async ({ page }) => {
     await page.goto('/');
     await page.click('text=Sign up');

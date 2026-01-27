@@ -124,7 +124,7 @@ async function setupTestCookies(page: Page, cookieDomain: string | undefined) {
       sameSite: 'Lax' as const,
     },
   ]);
-}
+
 
 /**
  * Mocks Supabase auth endpoints

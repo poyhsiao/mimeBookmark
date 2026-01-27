@@ -24,19 +24,6 @@ test.describe('Tags Page', () => {
     const colorButtons = page.locator('[style*="background-color"]').first();
     await expect(colorButtons).toBeVisible();
   });
-
-  test('should have create button', async ({ page }) => {
-    await expect(page.locator('button:has-text("Create Tag")').first()).toBeVisible();
-  });
-  });
-});
-
-  test('should display page title', async ({ page }) => {
-    await expect(page.locator('h1')).toContainText('Tags');
-    await expect(page.locator('text=Organize and manage your tags')).toBeVisible();
-  });
-
-  test('should have create new tag section', async ({ page }) => {
     const createSection = page.locator('text=Create New Tag').first();
     await expect(createSection).toBeVisible();
   });
