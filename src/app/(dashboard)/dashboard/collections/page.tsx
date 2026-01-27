@@ -10,7 +10,7 @@ export default function CollectionsPage() {
         </p>
       </div>
 
-      <CollectionsSection showHeader={false} />
+      <CollectionsSection showHeader={true} />
     </div>
   );
 }

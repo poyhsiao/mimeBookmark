@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-user';
+import { useE2ETestMode } from '@/hooks/use-e2e-test-mode';
 import { signOut } from '@/lib/auth/client';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -16,12 +17,15 @@ export default function DashboardLayout({
 }) {
   const { user, loading } = useUser();
   const router = useRouter();
+  const { isE2ETesting, isMounted } = useE2ETestMode();
 
   useEffect(() => {
-    if (!loading && !user) {
+    // Skip auth check for E2E testing when e2e-test-mode is set
+    // Only redirect after component is mounted to avoid SSR mismatch
+    if (isMounted && !loading && !user && !isE2ETesting) {
       router.push('/login');
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, isE2ETesting, isMounted]);
 
   if (loading) {
     return (
@@ -31,7 +35,13 @@ export default function DashboardLayout({
     );
   }
 
-  if (!user) {
+  // Skip rendering dashboard layout if no user (unless in E2E test mode)
+  // Wait for mount before making this decision to avoid SSR mismatch
+  if (!isMounted) {
+    return null;
+  }
+
+  if (!user && !isE2ETesting) {
     return null;
   }
 
@@ -93,7 +103,7 @@ export default function DashboardLayout({
             </Link>
             <div className="flex items-center gap-3 px-3 py-2 text-muted-foreground">
               <User className="h-4 w-4" />
-              <span className="text-sm truncate">{user.email}</span>
+              <span className="text-sm truncate">{user?.email || (isE2ETesting ? 'test@example.com' : 'Loading...')}</span>
             </div>
             <form action={async () => {
               await signOut();

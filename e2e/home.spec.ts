@@ -7,7 +7,7 @@ test.describe('Home Page', () => {
 
   test('should display the landing page with title and description', async ({ page }) => {
     await expect(page.locator('h1')).toContainText('MimeBookmark');
-    await expect(page.locator('text=Your personal bookmark manager')).toBeVisible();
+    await expect(page.locator('p:has-text("Your personal bookmark manager")')).toBeVisible();
   });
 
   test('should have login and register buttons', async ({ page }) => {

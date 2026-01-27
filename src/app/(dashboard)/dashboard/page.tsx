@@ -10,7 +10,8 @@ import { TagsSection } from '@/components/tags/tags-section';
 import Link from 'next/link';
 
 export default async function DashboardPage() {
-  const { user } = await getCurrentUser();
+  const userResult = await getCurrentUser();
+  const user = userResult.user;
 
   // Guard against missing user - redirect to login
   if (!user) {

@@ -26,6 +26,32 @@ export async function createServerSupabase() {
 }
 
 export async function getCurrentUser() {
+  const cookieStore = await cookies();
+
+  // Check for E2E test mode - requires BOTH env var AND cookie (restricted to non-production environments)
+  const e2eTestModeCookie = cookieStore.get('e2e-test-mode');
+  const isE2ETesting = process.env.E2E_USE_MOCK === 'true' &&
+                       e2eTestModeCookie?.value === 'true' &&
+                       process.env.NODE_ENV !== 'production';
+
+  if (isE2ETesting) {
+    // Return mock user for E2E testing
+    return {
+      error: null,
+      user: {
+        id: 'test-user-123',
+        email: 'test@example.com',
+        email_confirmed_at: new Date().toISOString(),
+        app_metadata: {},
+        user_metadata: {
+          full_name: 'Test User',
+        },
+        created_at: new Date().toISOString(),
+        aud: 'authenticated',
+      },
+    };
+  }
+
   const supabase = await createServerSupabase();
   const { data: { user }, error } = await supabase.auth.getUser();
 

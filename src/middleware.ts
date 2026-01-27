@@ -3,6 +3,16 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export async function middleware(request: NextRequest) {
+  // Skip auth check for E2E testing when BOTH env var AND cookie are set (only in non-production environments)
+  const e2eTestModeCookie = request.cookies.get('e2e-test-mode');
+  const isE2ETesting = process.env.E2E_USE_MOCK === 'true' &&
+                       e2eTestModeCookie?.value === 'true' &&
+                       process.env.NODE_ENV !== 'production';
+
+  if (isE2ETesting) {
+    console.log('[MIDDLEWARE] E2E test mode detected, skipping auth check');
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -34,7 +44,12 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith(p)
   );
 
-  if (isProtectedPath && !session) {
+  // Skip auth check for E2E testing when ALL three conditions are met:
+  // - E2E_USE_MOCK env var is 'true'
+  // - e2e-test-mode cookie is present
+  // - NODE_ENV is not 'production'
+  // (controlled by isE2ETesting boolean)
+  if (isProtectedPath && !session && !isE2ETesting) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 

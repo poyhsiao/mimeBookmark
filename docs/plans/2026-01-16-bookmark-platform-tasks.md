@@ -353,14 +353,14 @@
 - 每个请求在 Authorization header 中携带 Bearer token
 - 服务端通过 `createClient()` 验证 token 有效性
 
-**速率限制** (待实现):
-- 建议方案:
+**速率限制** (✅ 已完成):
+- 实现方案:
   - `/api/extensions/sync`: 每用户 60 次/分钟
   - `/api/extensions/batch-save`: 每用户 30 次/分钟
   - `/api/extensions/search`: 每用户 120 次/分钟
   - 超限返回 429 状态码，附带 Retry-After header
-- 实现计划: 使用 Redis 或 Upstash 实现滑动窗口限流
-- 预计完成: M7 Beta 发布前
+  - 实现方式: 使用 in-memory 滑动窗口限流
+- 当前状态: ✅ 已完成 - 使用 @/lib/rate-limiter.ts 实现了滑动窗口算法
 
 **扩展验证**:
 - 检查请求 Origin header 匹配扩展 ID
@@ -381,7 +381,7 @@
 
 **验收标准**:
 - 所有扩展 API 端点均需认证 - ✅
-- 速率限制正常工作 - 待实现
+- 速率限制正常工作 - ✅ 已完成 (使用 @/lib/rate-limiter.ts 滑动窗口算法)
 - 无效 token 正确拒绝 - ✅
 
 ---
