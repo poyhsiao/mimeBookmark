@@ -43,47 +43,6 @@ test.describe('Bookmarks Page', () => {
   });
 });
 
-  test('should display page title', async ({ page }) => {
-    await expect(page.locator('h1')).toContainText('Bookmarks');
-    await expect(page.locator('text=Manage your bookmarks here')).toBeVisible();
-  });
-
-  test('should have add bookmark button', async ({ page }) => {
-    const addButton = page.locator('button:has-text("Add Bookmark")').first();
-    await expect(addButton).toBeVisible();
-  });
-
-  test('should display search/filter options', async ({ page }) => {
-    const searchInput = page.locator('input[placeholder*="Search"], input[placeholder*="search"]').first();
-    await expect(searchInput).toBeVisible();
-  });
-
-  test('should show empty state when no bookmarks exist', async ({ page }) => {
-    // Mock the bookmarks API to return empty state for deterministic test
-    await page.route('**/api/bookmarks**', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ bookmarks: [], total: 0 }),
-      });
-    });
-
-    await page.goto('/dashboard/bookmarks');
-    const emptyState = page.locator('text=No bookmarks yet').first();
-    await expect(emptyState).toBeVisible();
-  });
-
-  test('should navigate to collections page', async ({ page }) => {
-    await page.click('text=Collections');
-    await expect(page).toHaveURL(/\/dashboard\/collections$/);
-  });
-
-  test('should navigate to tags page', async ({ page }) => {
-    await page.click('text=Tags');
-    await expect(page).toHaveURL(/\/dashboard\/tags$/);
-  });
-});
-
 test.describe('Bookmarks - Functionality', () => {
   test.beforeEach(async ({ page }) => {
     await authenticateUser(page);

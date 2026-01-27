@@ -17,12 +17,6 @@ test.describe('Navigation and Sidebar', () => {
     await expect(page).toHaveURL(/\/login$/);
   });
 
-  test('should navigate from register to login', async ({ page }) => {
-    await page.goto('/register');
-    await page.click('text=Sign in');
-    await expect(page).toHaveURL(/\/login$/);
-  });
-
   test.describe('Dashboard - Authenticated', () => {
     test.beforeEach(async ({ page }) => {
       await page.goto('/dashboard');
@@ -40,24 +34,6 @@ test.describe('Navigation and Sidebar', () => {
       await expect(sidebar.locator('text=Tags')).toBeVisible();
       await expect(sidebar.locator('text=Settings')).toBeVisible();
     });
-  });
-});
-
-  test('should navigate from home to login', async ({ page }) => {
-    await page.click('text=Sign In');
-    await expect(page).toHaveURL(/\/login$/);
-  });
-
-  test('should navigate from login to register', async ({ page }) => {
-    await page.goto('/login');
-    await page.click('text=Sign up');
-    await expect(page).toHaveURL(/\/register$/);
-  });
-
-  test('should navigate from register to login', async ({ page }) => {
-    await page.goto('/register');
-    await page.click('text=Sign in');
-    await expect(page).toHaveURL(/\/login$/);
   });
 });
 

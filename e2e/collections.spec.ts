@@ -32,49 +32,6 @@ test.describe('Collections Page', () => {
     
     await expect(page.locator('h1')).toContainText('Collections');
   });
-
-  test.describe.serial('Collections - With Data', () => {
-    test.beforeEach(async ({ page }) => {
-      await page.goto('/dashboard/collections');
-    });
-
-    test('should display collection cards when data exists', async ({ page }) => {
-      const collectionCards = page.locator('[class*="collection-card"]');
-      const count = await collectionCards.count();
-      const hasCollections = count > 0;
-
-      await expect(collectionCards).toHaveCount(hasCollections ? 1 : 0);
-      });
-  });
-  });
-
-  test('should display page title', async ({ page }) => {
-    await expect(page.locator('h1')).toContainText('Collections');
-    await expect(page.locator('text=Organize your bookmarks into collections')).toBeVisible();
-  });
-
-  test('should display collections section', async ({ page }) => {
-    const collectionsSection = page.locator('[class*="collections"]').first();
-    await expect(collectionsSection).toBeVisible();
-  });
-
-  test('should have add collection button', async ({ page }) => {
-    const addButton = page.locator('button:has-text("Add Collection")').first();
-    await expect(addButton).toBeVisible();
-  });
-
-  test('should navigate back to dashboard', async ({ page }) => {
-    await page.goto('/dashboard/collections');
-    await page.click('text=Dashboard');
-    await expect(page).toHaveURL(/\/dashboard$/);
-  });
-
-  test('should be responsive on mobile', async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 667 });
-    await page.goto('/dashboard/collections');
-    
-    await expect(page.locator('h1')).toContainText('Collections');
-  });
 });
 
 test.describe.serial('Collections - With Data', () => {

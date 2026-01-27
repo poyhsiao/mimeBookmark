@@ -46,60 +46,6 @@ test.describe('Settings Page', () => {
     const statsSection = page.locator('text=Usage Stats').first();
     await expect(statsSection).toBeVisible();
   });
-  });
-});
-
-  test('should display page title', async ({ page }) => {
-    await expect(page.locator('h1')).toContainText('Settings');
-    await expect(page.locator('text=Manage your account and preferences')).toBeVisible();
-  });
-
-  test('should have profile section', async ({ page }) => {
-    const profileSection = page.locator('text=Profile').first();
-    await expect(profileSection).toBeVisible();
-  });
-
-  test('should have display name input', async ({ page }) => {
-    const nameInput = page.locator('label:has-text("Display Name")').first();
-    await expect(nameInput).toBeVisible();
-  });
-
-  test('should have avatar upload section', async ({ page }) => {
-    const uploadButton = page.locator('button:has-text("Upload Photo")').first();
-    await expect(uploadButton).toBeVisible();
-  });
-
-  test('should have appearance section with theme options', async ({ page }) => {
-    const appearanceSection = page.locator('text=Appearance').first();
-    await expect(appearanceSection).toBeVisible();
-    
-    await expect(page.locator('text=Light')).toBeVisible();
-    await expect(page.locator('text=Dark')).toBeVisible();
-    await expect(page.locator('text=System')).toBeVisible();
-  });
-
-  test('should have language and region section', async ({ page }) => {
-    const languageSection = page.locator('text=Language & Region').first();
-    await expect(languageSection).toBeVisible();
-    
-    await expect(page.locator('select[id*="language"]')).toBeVisible();
-    await expect(page.locator('select[id*="timezone"]')).toBeVisible();
-  });
-
-  test('should have usage stats section', async ({ page }) => {
-    const statsSection = page.locator('text=Usage Stats').first();
-    await expect(statsSection).toBeVisible();
-  });
-
-  test('should have export section', async ({ page }) => {
-    const exportSection = page.locator('text=Export Bookmarks').first();
-    await expect(exportSection).toBeVisible();
-  });
-
-  test('should have import section', async ({ page }) => {
-    const importSection = page.locator('text=Import Bookmarks').first();
-    await expect(importSection).toBeVisible();
-  });
 });
 
 test.describe('Settings - Functionality', () => {

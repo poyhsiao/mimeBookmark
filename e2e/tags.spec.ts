@@ -24,19 +24,6 @@ test.describe('Tags Page', () => {
     const colorButtons = page.locator('[style*="background-color"]').first();
     await expect(colorButtons).toBeVisible();
   });
-    const createSection = page.locator('text=Create New Tag').first();
-    await expect(createSection).toBeVisible();
-  });
-
-  test('should have tag name input', async ({ page }) => {
-    const nameInput = page.locator('input[placeholder*="Enter tag name"]').first();
-    await expect(nameInput).toBeVisible();
-  });
-
-  test('should have color selection options', async ({ page }) => {
-    const colorButtons = page.locator('[style*="background-color"]').first();
-    await expect(colorButtons).toBeVisible();
-  });
 
   test('should have create button', async ({ page }) => {
     const createButton = page.locator('button:has-text("Create")').first();

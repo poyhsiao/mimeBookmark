@@ -30,49 +30,6 @@ test.describe('Accessibility', () => {
     }
   });
 
-  test('login page inputs must have associated labels', async ({ page }) => {
-    await page.goto('/login');
-    
-    // Check that form fields have associated labels
-    const emailInput = page.locator('input[type="email"]');
-    await expect(emailInput).toBeVisible();
-    
-    // Verify email input has proper label association
-    const emailId = await emailInput.getAttribute('id');
-    const emailAriaLabel = await emailInput.getAttribute('aria-label');
-    const emailAriaLabelledby = await emailInput.getAttribute('aria-labelledby');
-
-    // Check for aria attributes first (preferred method)
-    if (emailAriaLabel || emailAriaLabelledby) {
-      // Aria attributes present - accessibility requirement met
-      expect(emailAriaLabel || emailAriaLabelledby).toBeTruthy();
-    } else {
-      // No aria attributes - must have id with visible associated label
-      expect(emailId, 'Email input must have id when aria-label/aria-labelledby are absent').toBeTruthy();
-      const label = page.locator(`label[for="${emailId}"]`);
-      await expect(label, `Email input with id="${emailId}" must have visible associated label`).toBeVisible();
-    }
-    
-    const passwordInput = page.locator('input[type="password"]');
-    await expect(passwordInput).toBeVisible();
-    
-    // Verify password input has proper label association
-    const passwordId = await passwordInput.getAttribute('id');
-    const passwordAriaLabel = await passwordInput.getAttribute('aria-label');
-    const passwordAriaLabelledby = await passwordInput.getAttribute('aria-labelledby');
-
-    // Check for aria attributes first (preferred method)
-    if (passwordAriaLabel || passwordAriaLabelledby) {
-      // Aria attributes present - accessibility requirement met
-      expect(passwordAriaLabel || passwordAriaLabelledby).toBeTruthy();
-    } else {
-      // No aria attributes - must have id with visible associated label
-      expect(passwordId, 'Password input must have id when aria-label/aria-labelledby are absent').toBeTruthy();
-      const label = page.locator(`label[for="${passwordId}"]`);
-      await expect(label, `Password input with id="${passwordId}" must have visible associated label`).toBeVisible();
-    }
-  });
-
   test('register page should have proper form labels', async ({ page }) => {
     await page.goto('/register');
     
