@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { rateLimiters } from '@/lib/rate-limiter';
+import { escapePostgrestIlikeValue, buildIlikeOrFilter } from '@/lib/utils/postgrest';
 
 export async function GET(request: NextRequest) {
   try {
@@ -47,25 +48,10 @@ export async function GET(request: NextRequest) {
     }
 
     const queryTrimmed = query.trim();
-
-    // Escape SQL LIKE wildcards and special characters for ilike patterns
-    // Returns an unquoted, escaped string for use with wildcards
-    const escapeForPostgrest = (value: string): string => {
-      // First escape backslashes, then percent, underscore, and asterisk for LIKE
-      let escaped = value
-        .replace(/\\/g, '\\\\')   // Escape backslashes first
-        .replace(/%/g, '\\%')     // Escape percent wildcard
-        .replace(/_/g, '\\_')     // Escape underscore wildcard
-        .replace(/\*/g, '\\*');   // Escape asterisk wildcard
-
-      // For PostgREST quoted values, escape double quotes as ""
-      escaped = escaped.replace(/"/g, '""');
-
-      return escaped;
-    };
-
-    const escapedQuery = escapeForPostgrest(queryTrimmed.toLowerCase());
-
+    
+    // Escape user input for use in a PostgREST ilike pattern with double-quoted value
+    const escapedQuery = escapePostgrestIlikeValue(queryTrimmed.toLowerCase());
+    
     // Build search pattern with % wildcards (standard SQL LIKE wildcards)
     // The escaped string is used with % wildcards for partial matching
     const searchPattern = `%${escapedQuery}%`;
@@ -90,9 +76,7 @@ export async function GET(request: NextRequest) {
     // Use escaped pattern with proper quoting for PostgREST .or() filter
     // Values must be wrapped in double quotes for proper escaping
     if (escapedQuery) {
-      // Build the filter string with properly quoted values
-      // Each column.ilike comparison uses the same escaped pattern
-      const searchFilter = `title.ilike."${searchPattern}",url.ilike."${searchPattern}",description.ilike."${searchPattern}"`;
+      const searchFilter = buildIlikeOrFilter(['title', 'url', 'description'], searchPattern);
       dbQuery = dbQuery.or(searchFilter);
     }
     

@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Check for E2E test mode cookie
-  const cookieStore = await cookies();
+  const cookieStore = cookies();
   const e2eTestModeCookie = cookieStore.get('e2e-test-mode');
   const isE2ETesting = e2eTestModeCookie?.value === 'true' &&
                        process.env.NODE_ENV !== 'production';

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { getHostnameFromUrl } from '@/lib/utils/sql-escape';
 import { rateLimiters, type RateLimitResult } from '@/lib/rate-limiter';
+import { parseBatchSaveBody } from './parse-body';
+import { buildBookmarksToInsert } from './bookmarks';
+import { syncTagsForBookmarks } from './tags';
+import { buildSyncResultsSince } from './sync-results';
+import type { BookmarkToInsert, SyncResults, ValidationError } from './types';
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,17 +41,16 @@ export async function POST(request: NextRequest) {
     let tabs: Array<{ url: string; title?: string; favicon?: string }>;
 
     try {
-      const body = await request.json();
-      collectionId = body.collectionId;
-      tags = body.tags;
-      tabs = body.tabs;
-    } catch (error) {
-      if (error instanceof SyntaxError) {
+      ({ collectionId, tags, tabs } = await parseBatchSaveBody(request));
+    } catch (err: any) {
+      if (err.status) {
         return NextResponse.json(
-          { error: 'Malformed JSON in request body' },
-          { status: 400 }
+          { error: err.message },
+          { status: err.status }
         );
       }
+      throw err;
+    }
       // Re-throw other errors to be caught by the outer try-catch
       throw error;
     }
@@ -86,21 +89,59 @@ export async function POST(request: NextRequest) {
     const count = Number(profile.bookmarks_count ?? 0);
     const remainingSlots = Math.max(0, limit - count);
 
-    // Validate tabs first
-    const validTabs = tabs.filter((tab: { url: string; title?: string; favicon?: string }) => {
-      if (!tab.url || typeof tab.url !== 'string') return false;
-      try {
-        new URL(tab.url);
-        return true;
-      } catch {
-        return false;
+    let bookmarksToInsert: BookmarkToInsert[];
+    let skippedDuplicates = 0;
+
+    try {
+      ({ bookmarksToInsert, validTabs } = buildBookmarksToInsert(tabs, user.id, collectionId, remainingSlots));
+    } catch (err: any) {
+      if (err.status === 400 || err.status === 403) {
+        return NextResponse.json(
+          err.meta ? { error: err.message, ...err.meta } : { error: err.message },
+          { status: err.status }
+        );
       }
+      throw err;
+    }
+
+    const urls = bookmarksToInsert.map(b => b.url);
+
+    // Query existing bookmarks for these URLs to deduplicate
+    const { data: existingBookmarks, error: existingError } = await supabase
+      .from('bookmarks')
+      .select('url')
+      .eq('user_id', user.id)
+      .in('url', urls)
+      .is('deleted_at', null);
+
+    if (existingError) {
+      console.error('Error fetching existing bookmarks:', existingError);
+      return NextResponse.json(
+        { error: 'Failed to check for existing bookmarks' },
+        { status: 500 }
+      );
+    }
+
+    const existingUrls = new Set((existingBookmarks || []).map(b => b.url));
+
+    const urlsToInsert = bookmarksToInsert.map(b => b.url);
+    let skippedDuplicates = 0;
+
+    for (const bookmark of bookmarksToInsert) {
+      if (existingUrls.has(bookmark.url)) {
+        skippedDuplicates++;
+        continue;
+      }
+    }
     });
 
     // Check if there are any valid tabs
     if (validTabs.length === 0) {
       return NextResponse.json({ error: 'No valid tabs provided' }, { status: 400 });
     }
+
+    // Deduplicate URLs within the batch to prevent upsert conflicts
+    const uniqueTabs = Array.from(new Map(validTabs.map(tab => [tab.url, tab])).values());
 
     // Initialize sync results
     const syncResults = {
@@ -128,7 +169,7 @@ export async function POST(request: NextRequest) {
     const bookmarksToInsert: BookmarkToInsert[] = [];
 
     // Collect URLs from uniqueTabs only
-    const urls = validTabs.map((tab: { url: string }) => tab.url);
+    const urls = uniqueTabs.map((tab: { url: string }) => tab.url);
 
     // Query existing bookmarks for these URLs to deduplicate
     const { data: existingBookmarks, error: existingError } = await supabase
@@ -166,7 +207,7 @@ export async function POST(request: NextRequest) {
     };
     let upserted: UpsertedBookmark[] = [];
 
-    for (const tab of validTabs) {
+    for (const tab of uniqueTabs) {
       const url = tab.url;
 
       if (existingUrls.has(url)) {
@@ -196,18 +237,18 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Check quota after deduplication
-    if (bookmarksToInsert.length > remainingSlots) {
-      return NextResponse.json({
-        error: 'Not enough storage',
-        requested: bookmarksToInsert.length,
-        remaining: remainingSlots,
-      }, { status: 403 });
-    }
-
     // Capture timestamp BEFORE upsert for querying remote changes
     // This allows us to detect concurrent changes from other clients
     const validatedTimestamp = new Date().toISOString();
+
+    const syncResults: SyncResults = {
+      uploaded: { bookmarks: 0, collections: 0, tags: 0 },
+      downloaded: {
+        bookmarks: [],
+        collections: [],
+        tags: [],
+      },
+    };
 
     if (bookmarksToInsert.length > 0) {
       const validBookmarks = bookmarksToInsert.filter(b => b.user_id && b.url);
@@ -224,173 +265,33 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         );
       }
-      upserted = upsertedData || [];
+      const upserted = upsertedData || [];
       syncResults.uploaded.bookmarks = upserted.length;
 
-      // Handle tags if provided
-      if (tags && tags.length > 0 && upserted.length > 0) {
-        // Create or get existing tags
-        const tagNameToId: Record<string, string> = {};
-        const tagNames = tags
-          .filter(t => typeof t === 'string' && t.trim().length > 0)
-          .map(t => t.toLowerCase());
-
-        if (tagNames.length > 0) {
-          // Batch query: fetch all existing tags at once
-          const { data: existingTags } = await supabase
-            .from('tags')
-            .select('id, name')
-            .eq('user_id', user.id)
-            .in('name', tagNames)
-            .is('deleted_at', null);
-
-          // Populate map with existing tags
-          if (existingTags) {
-            for (const tag of existingTags) {
-              tagNameToId[tag.name.toLowerCase()] = tag.id;
-            }
-          }
-
-          // Find tags that need to be created, deduplicating by lowercase name
-          // Build a map from lowercase name to canonical original string
-          const lowerToCanonical: Record<string, string> = {};
-          for (const t of tags) {
-            if (typeof t !== 'string' || !t.trim()) continue;
-            const lowerName = t.toLowerCase();
-            // Skip if already in existing tags
-            if (tagNameToId[lowerName]) continue;
-            // Only store first occurrence for each lowercase variant
-            if (!lowerToCanonical[lowerName]) {
-              lowerToCanonical[lowerName] = t;
-            }
-          }
-
-          const tagsToCreate = Object.values(lowerToCanonical);
-
-          // Batch insert new tags with upsert to handle race conditions
-          // ignoreDuplicates: true ensures we don't update existing tags' custom colors
-          if (tagsToCreate.length > 0) {
-            const { data: insertedTags, error: insertError } = await supabase
-              .from('tags')
-              .insert(
-                tagsToCreate.map(tag => ({
-                  user_id: user.id,
-                  name: tag,
-                  color: '#6B7280',
-                }))
-              )
-              .select('id, name');
-
-            if (insertError) {
-              console.error('Failed to create tags:', insertError);
-              // Fallback: re-query all tag names we tried to insert
-              const { data: fallbackTags } = await supabase
-                .from('tags')
-                .select('id, name')
-                .eq('user_id', user.id)
-                .in('name', tagNames)
-                .is('deleted_at', null);
-
-              if (fallbackTags) {
-                for (const tag of fallbackTags) {
-                  tagNameToId[tag.name.toLowerCase()] = tag.id;
-                }
-              }
-            } else if (insertedTags) {
-              for (const tag of insertedTags) {
-                tagNameToId[tag.name.toLowerCase()] = tag.id;
-              }
-            }
-          }
-
-          // Link tags to all inserted bookmarks
-          const tagLinks: { bookmark_id: string; tag_id: string }[] = [];
-          for (const bookmark of upserted) {
-            for (const tagName of tags) {
-              if (typeof tagName !== 'string' || !tagName.trim()) continue;
-              const tagId = tagNameToId[tagName.toLowerCase()];
-              if (tagId) {
-                tagLinks.push({
-                  bookmark_id: bookmark.id,
-                  tag_id: tagId,
-                });
-              }
-            }
-          }
-
-          // Batch insert tag links
-          if (tagLinks.length > 0) {
-            const { error: tagLinksError } = await supabase
-              .from('bookmark_tags')
-              .upsert(tagLinks);
-
-            if (tagLinksError) {
-              console.error('Failed to link tags to bookmarks:', tagLinksError);
-            } else {
-              // Count unique tags, not tag-link associations
-              const uniqueTagIds = new Set(tagLinks.map(link => link.tag_id));
-              syncResults.uploaded.tags = uniqueTagIds.size;
-            }
-          }
-        }
+      if (tags && upserted.length > 0) {
+        syncResults.uploaded.tags = await syncTagsForBookmarks(supabase, user.id, tags, upserted);
       }
     }
 
-    // Collect uploaded URLs to exclude from download
     const uploadedUrls = bookmarksToInsert.map(b => b.url);
 
-    const { data: remoteBookmarks, error: remoteError } = await supabase
-      .from('bookmarks')
-      .select('*')
-      .eq('user_id', user.id)
-      .gt('updated_at', validatedTimestamp)
-      .is('deleted_at', null);
-
-    if (remoteError) {
-      console.error('Error fetching remote bookmarks:', remoteError);
-      return NextResponse.json(
-        { error: 'Failed to fetch bookmarks' },
-        { status: 500 }
+    try {
+      syncResults.downloaded = await buildSyncResultsSince(
+        supabase,
+        user.id,
+        validatedTimestamp,
+        uploadedUrls
       );
+    } catch (err: any) {
+      if (err.status === 500) {
+        console.error(`Error fetching remote ${err.context}:`, err);
+        return NextResponse.json(
+          { error: `Failed to fetch ${err.context}` },
+          { status: 500 }
+        );
+      }
+      throw err;
     }
-
-    syncResults.downloaded.bookmarks = (remoteBookmarks || []).filter(
-      bookmark => !uploadedUrls.includes(bookmark.url)
-    );
-
-    const { data: remoteCollections, error: collectionsError } = await supabase
-      .from('collections')
-      .select('*')
-      .eq('user_id', user.id)
-      .gt('updated_at', validatedTimestamp)
-      .is('deleted_at', null);
-
-    if (collectionsError) {
-      console.error('Error fetching remote collections:', collectionsError);
-      return NextResponse.json(
-        { error: 'Failed to fetch collections' },
-        { status: 500 }
-      );
-    }
-
-    syncResults.downloaded.collections = remoteCollections || [];
-
-    const { data: remoteTags, error: tagsError } = await supabase
-      .from('tags')
-      .select('*')
-      .eq('user_id', user.id)
-      .gt('updated_at', validatedTimestamp)
-      .is('deleted_at', null);
-
-    if (tagsError) {
-      console.error('Error fetching remote tags:', tagsError);
-      return NextResponse.json(
-        { error: 'Failed to fetch tags' },
-        { status: 500 }
-      );
-    }
-
-    syncResults.downloaded.tags = remoteTags || [];
 
     return NextResponse.json({
       success: true,

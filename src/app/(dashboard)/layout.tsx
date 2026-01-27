@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-user';
+import { useE2ETestMode } from '@/hooks/use-e2e-test-mode';
 import { signOut } from '@/lib/auth/client';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -16,19 +17,7 @@ export default function DashboardLayout({
 }) {
   const { user, loading } = useUser();
   const router = useRouter();
-
-  // Client-only E2E test mode detection to avoid SSR hydration mismatch
-  const [isE2ETesting, setIsE2ETesting] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    // Check for E2E test mode after mount (client-side only)
-    const e2eMode = typeof window !== 'undefined' && (
-      localStorage.getItem('e2e-test-mode') === 'true' || (window as any).__E2E_MOCK_AUTH__ === true
-    );
-    setIsE2ETesting(e2eMode);
-    setIsMounted(true);
-  }, []);
+  const { isE2ETesting, isMounted } = useE2ETestMode();
 
   useEffect(() => {
     // Skip auth check for E2E testing when e2e-test-mode is set
