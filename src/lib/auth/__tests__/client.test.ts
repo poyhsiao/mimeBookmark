@@ -7,9 +7,6 @@ const mockEnv = {
   NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
 };
 
-vi.mocked(process.env).NEXT_PUBLIC_SUPABASE_URL = mockEnv.NEXT_PUBLIC_SUPABASE_URL;
-vi.mocked(process.env).NEXT_PUBLIC_SUPABASE_ANON_KEY = mockEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-vi.mocked(process.env).NEXT_PUBLIC_APP_URL = mockEnv.NEXT_PUBLIC_APP_URL;
 
 // Mock Supabase SSR client
 const mockSignUp = vi.fn();
@@ -39,7 +36,14 @@ const { signUp, signIn, signOut, signInWithOAuth, signInWithMagicLink, resetPass
 
 describe('Auth Client Functions', () => {
   beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', mockEnv.NEXT_PUBLIC_SUPABASE_URL);
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', mockEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', mockEnv.NEXT_PUBLIC_APP_URL);
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   describe('signUp', () => {

@@ -41,9 +41,11 @@ export async function GET(request: NextRequest) {
           .select()
           .maybeSingle();
 
-        // If insert was ignored (race condition - profile already exists),
-        // try to fetch the existing profile as fallback
-        if ((profileError || !newProfile) && !profileError) {
+        const isDuplicate =
+          profileError?.code === "23505" ||
+          /duplicate/i.test(profileError?.message ?? "") ||
+          /already exists/i.test(profileError?.details ?? "");
+        if (!newProfile && (!profileError || isDuplicate)) {
           const { data: existingProfile, error: fallbackError }: { data: any, error: any } = await supabase
             .from("profiles")
             .select("*")

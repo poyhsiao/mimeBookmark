@@ -1,8 +1,4 @@
-import { describe, expect, test, vi, beforeEach } from 'vitest';
-
-// Mock environment - E2E mode off for all tests
-vi.stubEnv('E2E_USE_MOCK', 'false');
-vi.stubEnv('NODE_ENV', 'development');
+import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock cookies store - must include both get and getAll methods
 const mockCookieStore = {
@@ -30,10 +26,15 @@ const { getCurrentUser, getSession } = await import('../server');
 
 describe('Auth Server Functions', () => {
   beforeEach(() => {
+    vi.stubEnv('E2E_USE_MOCK', 'false');
+    vi.stubEnv('NODE_ENV', 'development');
     vi.clearAllMocks();
     mockCookieStore.getAll.mockReturnValue([]);
     mockCookieStore.get.mockReturnValue(undefined);
-    vi.stubEnv('E2E_USE_MOCK', 'false');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   describe('getCurrentUser', () => {

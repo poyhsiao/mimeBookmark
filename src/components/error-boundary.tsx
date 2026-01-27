@@ -57,18 +57,10 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   private handleRetry = (): void => {
-    // Prevent action if already in cooldown or max retries reached
-    if (this.state.cooldownRemaining > 0 || this.retryCount >= MAX_RETRIES) {
+    // Prevent action if already in cooldown
+    if (this.state.cooldownRemaining > 0) {
       return;
     }
-
-    // Clear any existing interval before starting new logic
-    if (this.cooldownInterval) {
-      clearInterval(this.cooldownInterval);
-      this.cooldownInterval = null;
-    }
-
-    this.retryCount += 1;
 
     // Check if retries are exhausted - show "Too Many Retries" UI
     if (this.retryCount >= MAX_RETRIES) {
@@ -79,6 +71,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       });
       return;
     }
+
+    // Clear any existing interval before starting new logic
+    if (this.cooldownInterval) {
+      clearInterval(this.cooldownInterval);
+      this.cooldownInterval = null;
+    }
+
+    this.retryCount += 1;
 
     // For normal retries (not exhausted), start cooldown then retry
     this.setState({ cooldownRemaining: COOLDOWN_SECONDS });
@@ -126,7 +126,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         ? this.state.error?.message || 'An unexpected error occurred'
         : 'An unexpected error occurred';
 
-      if (this.retryCount >= MAX_RETRIES) {
+      if (this.retryCount >= MAX_RETRIES && this.state.cooldownRemaining === 0) {
         return (
           <div className="p-4 border border-red-200 rounded-lg bg-red-50 dark:bg-red-900/20">
             <h2 className="text-lg font-semibold text-red-700 dark:text-red-400">
