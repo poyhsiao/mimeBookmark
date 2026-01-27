@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     let skippedDuplicates = 0;
 
     try {
-      ({ bookmarksToInsert, validTabs } = buildBookmarksToInsert(tabs, user.id, collectionId, remainingSlots));
+      ({ bookmarksToInsert, uniqueTabs } = buildBookmarksToInsert(tabs, user.id, collectionId, remainingSlots));
     } catch (err: any) {
       if (err.status === 400 || err.status === 403) {
         return NextResponse.json(
@@ -131,7 +131,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const uniqueTabs = Array.from(new Map(validTabs.map(tab => [tab.url, tab])).values());
 
     type UpsertedBookmark = BookmarkToInsert & {
       id: string;
