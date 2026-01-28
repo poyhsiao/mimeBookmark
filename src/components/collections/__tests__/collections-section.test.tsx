@@ -53,8 +53,9 @@ describe("CollectionsSection", () => {
   test("onSuccess should call fetchTree with search parameters", async () => {
     render(<CollectionsSection />);
 
-    // Trigger New Collection modal
-    const newBtn = screen.getByText("New Collection");
+    // Get the first "Add Collection" button (in the header, not the empty state)
+    const newBtns = screen.getAllByText("Add Collection");
+    const newBtn = newBtns[0]; // Header button is first
     fireEvent.click(newBtn);
 
     // Find the success trigger in the mocked modal
