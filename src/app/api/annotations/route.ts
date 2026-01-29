@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
-import { checkAnnotationLimit } from '@/lib/subscription/utils';
+import { checkAnnotationLimit } from '@/lib/subscription';
 
 // GET /api/annotations - List annotations with pagination and filters
 export async function GET(request: NextRequest) {
@@ -130,11 +130,11 @@ export async function POST(request: NextRequest) {
         user_id: user.id,
         bookmark_id,
         content: content.trim(),
-        content_type: content_type || 'note',
-        highlight_start: highlight_start || null,
-        highlight_end: highlight_end || null,
-        highlight_text: highlight_text || null,
-        visibility: visibility || 'private',
+        content_type: content_type ?? 'note',
+        highlight_start: highlight_start ?? null,
+        highlight_end: highlight_end ?? null,
+        highlight_text: highlight_text ?? null,
+        visibility: visibility ?? 'private',
       })
       .select()
       .single();

@@ -106,28 +106,17 @@ async function injectMockSession(page: Page, projectRef: string, mockSession: Re
 async function setupTestCookies(page: Page, cookieDomain: string | undefined) {
   const context: BrowserContext = page.context();
 
-  // For localhost, we must use url; for other domains use domain
-  if (cookieDomain) {
-    await context.addCookies([
-      {
-        name: 'e2e-test-mode',
-        value: 'true',
-        domain: cookieDomain,
-        path: '/',
-        sameSite: 'Lax' as const,
-      },
-    ]);
-  } else {
-    // For localhost, use url instead
-    await context.addCookies([
-      {
-        name: 'e2e-test-mode',
-        value: 'true',
-        url: 'http://localhost:3000',
-        sameSite: 'Lax' as const,
-      },
-    ]);
-  }
+  const baseCookie = {
+    name: 'e2e-test-mode',
+    value: 'true',
+    sameSite: 'Lax' as const,
+  };
+
+  const cookie = cookieDomain
+    ? { ...baseCookie, domain: cookieDomain, path: '/' }
+    : { ...baseCookie, url: 'http://localhost:3000' };
+
+  await context.addCookies([cookie]);
 }
 
 /**
@@ -289,31 +278,20 @@ async function mockSupabaseAuth(page: Page, mockSession: ReturnType<typeof creat
   // Mock Supabase REST API requests (including count queries)
   await page.route('**/*supabase.co/**', async route => {
     const url = new URL(route.request().url());
+    const isHead = route.request().method() === 'HEAD';
+    const countHeaders = { 'content-range': '0-0/0' };
 
-    // Handle count queries for collections, bookmarks, tags
-    if (url.pathname.includes('/collections') && url.searchParams.has('select')) {
+    const countTables = ['collections', 'bookmarks', 'tags'];
+    const isCountQuery =
+      url.searchParams.has('select') &&
+      countTables.some(table => url.pathname.includes(`/${table}`));
+
+    if (isCountQuery) {
       await route.fulfill({
         status: 200,
+        headers: countHeaders,
         contentType: 'application/json',
-        body: JSON.stringify({ data: [], count: 0, error: null }),
-      });
-      return;
-    }
-
-    if (url.pathname.includes('/bookmarks') && url.searchParams.has('select')) {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ data: [], count: 0, error: null }),
-      });
-      return;
-    }
-
-    if (url.pathname.includes('/tags') && url.searchParams.has('select')) {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ data: [], count: 0, error: null }),
+        body: isHead ? '' : JSON.stringify([]),
       });
       return;
     }

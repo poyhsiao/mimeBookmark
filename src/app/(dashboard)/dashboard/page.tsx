@@ -37,6 +37,12 @@ export default async function DashboardPage() {
       supabase.from('tags').select('id', { count: 'exact', head: true }).eq('user_id', user.id).is('deleted_at', null),
     ]);
 
+    const errors = [collectionsResult.error, bookmarksResult.error, tagsResult.error].filter(Boolean);
+    if (errors.length) {
+      console.error('Dashboard stats error:', errors);
+      throw new Error('Failed to load dashboard stats');
+    }
+
     stats = {
       collections: collectionsResult.count || 0,
       bookmarks: bookmarksResult.count || 0,

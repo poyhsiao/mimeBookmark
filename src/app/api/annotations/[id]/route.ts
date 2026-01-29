@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // GET /api/annotations/:id - Get a single annotation
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -14,7 +14,7 @@ export async function GET(
   }
 
   try {
-    const { id } = await params;
+    const { id } = params;
 
     const { data: annotation, error } = await supabase
       .from('annotations')
@@ -33,7 +33,16 @@ export async function GET(
       .single();
 
     if (error) {
-      return NextResponse.json({ error: 'Annotation not found' }, { status: 404 });
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Annotation not found' }, { status: 404 });
+      }
+
+      console.error('Error fetching annotation', error);
+
+      return NextResponse.json(
+        { error: 'Internal server error' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ annotation });
@@ -46,7 +55,7 @@ export async function GET(
 // PUT /api/annotations/:id - Update an annotation
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -56,7 +65,7 @@ export async function PUT(
   }
 
   try {
-    const { id } = await params;
+    const { id } = params;
     const body = await request.json();
     const {
       content,
@@ -76,7 +85,19 @@ export async function PUT(
       .is('deleted_at', null)
       .single();
 
-    if (checkError || !existing) {
+    if (checkError) {
+      if (checkError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Annotation not found' }, { status: 404 });
+      }
+
+      console.error('Error verifying annotation ownership', checkError);
+      return NextResponse.json(
+        { error: 'Failed to verify annotation' },
+        { status: 500 }
+      );
+    }
+
+    if (!existing) {
       return NextResponse.json({ error: 'Annotation not found' }, { status: 404 });
     }
 
@@ -140,7 +161,7 @@ export async function PUT(
 // DELETE /api/annotations/:id - Soft delete an annotation
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -150,7 +171,7 @@ export async function DELETE(
   }
 
   try {
-    const { id } = await params;
+    const { id } = params;
 
     // Verify the annotation belongs to the user
     const { data: existing, error: checkError } = await supabase
@@ -161,7 +182,19 @@ export async function DELETE(
       .is('deleted_at', null)
       .single();
 
-    if (checkError || !existing) {
+    if (checkError) {
+      if (checkError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Annotation not found' }, { status: 404 });
+      }
+
+      console.error('Error verifying annotation ownership', checkError);
+      return NextResponse.json(
+        { error: 'Failed to verify annotation' },
+        { status: 500 }
+      );
+    }
+
+    if (!existing) {
       return NextResponse.json({ error: 'Annotation not found' }, { status: 404 });
     }
 
