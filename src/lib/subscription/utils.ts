@@ -38,11 +38,16 @@ export async function checkAnnotationLimit(supabase: SupabaseClient, userId: str
 
   // Free tier: check current annotation count
   // Free users get 10 annotations
-  const { count } = await supabase
+  const { count, error: countError } = await supabase
     .from('annotations')
     .select('*', { count: 'exact', head: true })
     .eq('user_id', userId)
     .is('deleted_at', null);
+
+  if (countError) {
+    console.error('checkAnnotationLimit - count query failed:', countError);
+    return false; // Fail closed: deny creation on error
+  }
 
   const freeLimit = 10;
   return (count ?? 0) < freeLimit;

@@ -120,7 +120,14 @@ export async function POST(request: NextRequest) {
       .is('deleted_at', null)
       .single();
 
-    if (bookmarkError || !bookmark) {
+    if (bookmarkError) {
+      if (bookmarkError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Bookmark not found' }, { status: 404 });
+      }
+      console.error('Create annotation - bookmark lookup error:', bookmarkError);
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+    if (!bookmark) {
       return NextResponse.json({ error: 'Bookmark not found' }, { status: 404 });
     }
 
