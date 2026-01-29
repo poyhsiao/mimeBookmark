@@ -102,18 +102,26 @@ async function injectMockSession(page: Page, projectRef: string, mockSession: Re
  * Sets test cookies for E2E mode
  * @param page - Playwright Page instance
  * @param cookieDomain - Cookie domain or undefined
+ * @param baseUrl - Base URL for cookie URL (defaults to http://localhost:3000)
  */
-async function setupTestCookies(page: Page, cookieDomain: string | undefined) {
+async function setupTestCookies(
+  page: Page,
+  cookieDomain: string | undefined,
+  baseUrl = process.env.BASE_URL || 'http://localhost:3000'
+) {
   const context: BrowserContext = page.context();
-  await context.addCookies([
-    {
-      name: 'e2e-test-mode',
-      value: 'true',
-      domain: cookieDomain,
-      path: '/',
-      sameSite: 'Lax' as const,
-    },
-  ]);
+
+  const baseCookie = {
+    name: 'e2e-test-mode',
+    value: 'true',
+    sameSite: 'Lax' as const,
+  };
+
+  const cookie = cookieDomain
+    ? { ...baseCookie, domain: cookieDomain, path: '/' }
+    : { ...baseCookie, url: baseUrl };
+
+  await context.addCookies([cookie]);
 }
 
 /**
@@ -241,7 +249,16 @@ async function setupMockAuth(page: Page): Promise<void> {
   const mockSession = createMockSession();
 
   await injectMockSession(page, projectRef, mockSession);
-  await setupTestCookies(page, getCookieDomain());
+
+  const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+  await setupTestCookies(page, getCookieDomain(baseUrl), baseUrl);
+
+  // Also set localStorage flag for useE2ETestMode hook
+  await page.addInitScript(() => {
+    localStorage.setItem('e2e-test-mode', 'true');
+    (window as any).__E2E_MOCK_AUTH__ = true;
+  });
+
   await setupAPIRoutes(page, mockSession);
 }
 
@@ -251,6 +268,7 @@ async function setupMockAuth(page: Page): Promise<void> {
  * @param mockSession - Mock session object
  */
 async function mockSupabaseAuth(page: Page, mockSession: ReturnType<typeof createMockSession>) {
+  // Mock auth endpoints
   await page.route('**/auth/v1/**', async route => {
     await route.fulfill({
       status: 200,
@@ -264,7 +282,28 @@ async function mockSupabaseAuth(page: Page, mockSession: ReturnType<typeof creat
     });
   });
 
+  // Mock Supabase REST API requests (including count queries)
   await page.route('**/*supabase.co/**', async route => {
+    const url = new URL(route.request().url());
+    const isHead = route.request().method() === 'HEAD';
+    const countHeaders = { 'content-range': '0-0/0' };
+
+    const countTables = ['collections', 'bookmarks', 'tags'];
+    const isCountQuery =
+      url.searchParams.has('select') &&
+      countTables.some(table => url.pathname.includes(`/${table}`));
+
+    if (isCountQuery) {
+      await route.fulfill({
+        status: 200,
+        headers: countHeaders,
+        contentType: 'application/json',
+        body: isHead ? '' : JSON.stringify([]),
+      });
+      return;
+    }
+
+    // Default response for other Supabase requests
     await route.fulfill({
       status: 200,
       contentType: 'application/json',

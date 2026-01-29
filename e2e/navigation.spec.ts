@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { authenticateUser } from './fixtures/auth';
 
 test.describe('Navigation and Sidebar', () => {
   test.beforeEach(async ({ page }) => {
