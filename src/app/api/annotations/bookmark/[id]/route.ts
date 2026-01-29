@@ -26,7 +26,7 @@ export async function GET(
       .single();
 
     if (bookmarkError) {
-      if (bookmarkError.code === 'PGRST116' || !bookmark) {
+      if (bookmarkError.code === 'PGRST116') {
         return NextResponse.json({ error: 'Bookmark not found' }, { status: 404 });
       }
       console.error('Get bookmark annotations - database error:', bookmarkError);

@@ -102,8 +102,13 @@ async function injectMockSession(page: Page, projectRef: string, mockSession: Re
  * Sets test cookies for E2E mode
  * @param page - Playwright Page instance
  * @param cookieDomain - Cookie domain or undefined
+ * @param baseUrl - Base URL for cookie URL (defaults to http://localhost:3000)
  */
-async function setupTestCookies(page: Page, cookieDomain: string | undefined) {
+async function setupTestCookies(
+  page: Page,
+  cookieDomain: string | undefined,
+  baseUrl = process.env.BASE_URL || 'http://localhost:3000'
+) {
   const context: BrowserContext = page.context();
 
   const baseCookie = {
@@ -114,7 +119,7 @@ async function setupTestCookies(page: Page, cookieDomain: string | undefined) {
 
   const cookie = cookieDomain
     ? { ...baseCookie, domain: cookieDomain, path: '/' }
-    : { ...baseCookie, url: 'http://localhost:3000' };
+    : { ...baseCookie, url: baseUrl };
 
   await context.addCookies([cookie]);
 }
@@ -244,7 +249,9 @@ async function setupMockAuth(page: Page): Promise<void> {
   const mockSession = createMockSession();
 
   await injectMockSession(page, projectRef, mockSession);
-  await setupTestCookies(page, getCookieDomain());
+
+  const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+  await setupTestCookies(page, getCookieDomain(baseUrl), baseUrl);
 
   // Also set localStorage flag for useE2ETestMode hook
   await page.addInitScript(() => {
