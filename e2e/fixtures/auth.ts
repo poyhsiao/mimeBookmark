@@ -105,15 +105,29 @@ async function injectMockSession(page: Page, projectRef: string, mockSession: Re
  */
 async function setupTestCookies(page: Page, cookieDomain: string | undefined) {
   const context: BrowserContext = page.context();
-  await context.addCookies([
-    {
-      name: 'e2e-test-mode',
-      value: 'true',
-      domain: cookieDomain,
-      path: '/',
-      sameSite: 'Lax' as const,
-    },
-  ]);
+
+  // For localhost, we must use url; for other domains use domain
+  if (cookieDomain) {
+    await context.addCookies([
+      {
+        name: 'e2e-test-mode',
+        value: 'true',
+        domain: cookieDomain,
+        path: '/',
+        sameSite: 'Lax' as const,
+      },
+    ]);
+  } else {
+    // For localhost, use url instead
+    await context.addCookies([
+      {
+        name: 'e2e-test-mode',
+        value: 'true',
+        url: 'http://localhost:3000',
+        sameSite: 'Lax' as const,
+      },
+    ]);
+  }
 }
 
 /**
@@ -242,6 +256,13 @@ async function setupMockAuth(page: Page): Promise<void> {
 
   await injectMockSession(page, projectRef, mockSession);
   await setupTestCookies(page, getCookieDomain());
+
+  // Also set localStorage flag for useE2ETestMode hook
+  await page.addInitScript(() => {
+    localStorage.setItem('e2e-test-mode', 'true');
+    (window as any).__E2E_MOCK_AUTH__ = true;
+  });
+
   await setupAPIRoutes(page, mockSession);
 }
 
@@ -251,6 +272,7 @@ async function setupMockAuth(page: Page): Promise<void> {
  * @param mockSession - Mock session object
  */
 async function mockSupabaseAuth(page: Page, mockSession: ReturnType<typeof createMockSession>) {
+  // Mock auth endpoints
   await page.route('**/auth/v1/**', async route => {
     await route.fulfill({
       status: 200,
@@ -264,7 +286,39 @@ async function mockSupabaseAuth(page: Page, mockSession: ReturnType<typeof creat
     });
   });
 
+  // Mock Supabase REST API requests (including count queries)
   await page.route('**/*supabase.co/**', async route => {
+    const url = new URL(route.request().url());
+
+    // Handle count queries for collections, bookmarks, tags
+    if (url.pathname.includes('/collections') && url.searchParams.has('select')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ data: [], count: 0, error: null }),
+      });
+      return;
+    }
+
+    if (url.pathname.includes('/bookmarks') && url.searchParams.has('select')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ data: [], count: 0, error: null }),
+      });
+      return;
+    }
+
+    if (url.pathname.includes('/tags') && url.searchParams.has('select')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ data: [], count: 0, error: null }),
+      });
+      return;
+    }
+
+    // Default response for other Supabase requests
     await route.fulfill({
       status: 200,
       contentType: 'application/json',

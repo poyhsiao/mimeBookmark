@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { authenticateUser } from './fixtures/auth';
 
 test.describe('Bookmarks Page', () => {
   test.beforeEach(async ({ page }) => {

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { authenticateUser } from './fixtures/auth';
 
 test.describe('Accessibility', () => {
   test('home page should have proper heading structure', async ({ page }) => {

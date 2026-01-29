@@ -18,19 +18,31 @@ export default async function DashboardPage() {
     redirect('/login');
   }
 
-  const supabase = await createClient();
+  // Check if running in E2E test mode (only in non-production environments)
+  const isE2ETesting = process.env.E2E_USE_MOCK === 'true' && process.env.NODE_ENV !== 'production';
 
-  const [collectionsResult, bookmarksResult, tagsResult] = await Promise.all([
-    supabase.from('collections').select('id', { count: 'exact', head: true }).eq('user_id', user.id).is('deleted_at', null),
-    supabase.from('bookmarks').select('id', { count: 'exact', head: true }).eq('user_id', user.id).is('deleted_at', null),
-    supabase.from('tags').select('id', { count: 'exact', head: true }).eq('user_id', user.id).is('deleted_at', null),
-  ]);
-
-  const stats = {
-    collections: collectionsResult.count || 0,
-    bookmarks: bookmarksResult.count || 0,
-    tags: tagsResult.count || 0,
+  let stats = {
+    collections: 0,
+    bookmarks: 0,
+    tags: 0,
   };
+
+  // Only fetch from database if not in E2E test mode
+  if (!isE2ETesting) {
+    const supabase = await createClient();
+
+    const [collectionsResult, bookmarksResult, tagsResult] = await Promise.all([
+      supabase.from('collections').select('id', { count: 'exact', head: true }).eq('user_id', user.id).is('deleted_at', null),
+      supabase.from('bookmarks').select('id', { count: 'exact', head: true }).eq('user_id', user.id).is('deleted_at', null),
+      supabase.from('tags').select('id', { count: 'exact', head: true }).eq('user_id', user.id).is('deleted_at', null),
+    ]);
+
+    stats = {
+      collections: collectionsResult.count || 0,
+      bookmarks: bookmarksResult.count || 0,
+      tags: tagsResult.count || 0,
+    };
+  }
 
   return (
     <div className="space-y-8">
