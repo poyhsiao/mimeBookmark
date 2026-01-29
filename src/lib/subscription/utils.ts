@@ -32,7 +32,7 @@ export async function checkAnnotationLimit(supabase: SupabaseClient, userId: str
   const tier = profile.subscription_tier as keyof typeof SUBSCRIPTION_PLANS | undefined;
   const plan = SUBSCRIPTION_PLANS[tier ?? 'free'] ?? SUBSCRIPTION_PLANS.free;
 
-  // Pro and Team plans have unlimited annotations
+  // Annotations limits are tied to bookmarks; Pro/Team plans (bookmarks: -1) have unlimited annotations
   if (plan.limits.bookmarks === -1) {
     return true;
   }
