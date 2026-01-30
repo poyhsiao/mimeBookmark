@@ -613,7 +613,7 @@
 
 ### E2E 测试
 
-- [x] 完整用户流程 - ✅ 已实现 (85/157 passed, 66 skipped, 6 did not run)
+- [x] 完整用户流程 - ✅ 已实现 (94/157 passed, 57 skipped, 6 did not run)
 - [x] Playwright 配置完成 - ✅ playwright.config.ts
 - [x] Mock 認證系統 - ✅ e2e/fixtures/auth.ts (支持 localStorage + cookie)
 - [x] Dashboard 頁面 E2E 支持 - ✅ 跳過 SSR 數據庫查詢（E2E 模式）

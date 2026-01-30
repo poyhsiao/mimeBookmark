@@ -43,7 +43,7 @@ test.describe('Import Functionality', () => {
 
   test('should show progress during import', async ({ page }) => {
     let callCount = 0;
-    await page.route('**/api/bookmarks/import**', async (route) => {
+    await page.route('**/api/bookmarks/import*', async (route) => {
       callCount++;
       if (callCount === 1) {
         await route.fulfill({
@@ -73,7 +73,7 @@ test.describe('Import Functionality', () => {
   });
 
   test('should show import results', async ({ page }) => {
-    await page.route('**/api/bookmarks/import**', async (route) => {
+    await page.route('**/api/bookmarks/import*', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -102,7 +102,7 @@ test.describe('Import Functionality', () => {
   });
 
   test('should handle import errors gracefully', async ({ page }) => {
-    await page.route('**/api/bookmarks/import**', async (route) => {
+    await page.route('**/api/bookmarks/import*', async (route) => {
       await route.fulfill({
         status: 400,
         contentType: 'application/json',
@@ -167,7 +167,7 @@ test.describe('Export Functionality', () => {
 
   test('should initiate download when export is clicked', async ({ page }) => {
     const downloadPromise = page.waitForEvent('download');
-    await page.route('**/api/bookmarks/export**', async (route) => {
+    await page.route('**/api/bookmarks/export*', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'text/html',
@@ -206,7 +206,7 @@ test.describe('Import/Export Edge Cases', () => {
   });
 
   test('should handle network errors during import', async ({ page }) => {
-    await page.route('**/api/bookmarks/import**', (route) => {
+    await page.route('**/api/bookmarks/import*', (route) => {
       route.abort('failed');
     });
 
@@ -222,7 +222,7 @@ test.describe('Import/Export Edge Cases', () => {
   });
 
   test('should handle duplicate URLs during import', async ({ page }) => {
-    await page.route('**/api/bookmarks/import**', async (route) => {
+    await page.route('**/api/bookmarks/import*', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
