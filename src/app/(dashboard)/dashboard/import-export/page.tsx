@@ -18,39 +18,84 @@ interface ImportResult {
   tagsCreated?: number;
 }
 
-export default function ImportExportPage() {
-  const router = useRouter();
-  const { toast } = useToast();
+function getDownloadFilename(response: Response, fallback: string): string {
+  const cd = response.headers.get('Content-Disposition');
+  if (!cd) return fallback;
 
-  // Refs for cleanup
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isMountedRef = useRef(true);
+  const filenameStarMatch = cd.match(/filename\*\s*=\s*([^;]+)/i);
+  if (filenameStarMatch?.[1]) {
+    const rfc5987Match = /^(.*?)''(.+)$/.exec(filenameStarMatch[1]);
+    if (rfc5987Match) {
+      const [, , encodedFilename] = rfc5987Match;
+      try {
+        return decodeURIComponent(encodedFilename);
+      } catch {
+      }
+    }
+  }
 
-  // Cleanup on unmount
+  const quotedMatch = cd.match(/filename\s*=\s*"([^"]+)"/i);
+  if (quotedMatch?.[1]) return quotedMatch[1];
+
+  const unquotedMatch = cd.match(/filename\s*=\s*([^;]+)/i);
+  if (unquotedMatch?.[1]) return unquotedMatch[1].trim();
+
+  return fallback;
+}
+
+function useSafeTimeout() {
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     return () => {
-      isMountedRef.current = false;
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
       }
     };
   }, []);
 
-  // Export state
+  const setSafeTimeout = useCallback((fn: () => void, delay: number) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(fn, delay);
+  }, []);
+
+  return setSafeTimeout;
+}
+
+type ImportPhase = 'idle' | 'preparing' | 'reading' | 'processing' | 'saving' | 'complete' | 'error';
+
+const phaseConfig: Record<ImportPhase, { progress: number; label: string }> = {
+  idle: { progress: 0, label: '' },
+  preparing: { progress: 0, label: 'Preparing...' },
+  reading: { progress: 10, label: 'Reading file...' },
+  processing: { progress: 30, label: 'Processing...' },
+  saving: { progress: 70, label: 'Saving...' },
+  complete: { progress: 100, label: 'Complete' },
+  error: { progress: 0, label: 'Error' },
+};
+
+export default function ImportExportPage() {
+  const router = useRouter();
+  const { toast } = useToast();
+
+  const setSafeTimeout = useSafeTimeout();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const [exportFormat, setExportFormat] = useState<'json' | 'html' | 'csv'>('json');
   const [includeTags, setIncludeTags] = useState(true);
   const [includeCollections, setIncludeCollections] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
-  
-  // Import state
+
   const [importFile, setImportFile] = useState<File | null>(null);
   const [overwriteExisting, setOverwriteExisting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [importProgress, setImportProgress] = useState(0);
-  const [importStatus, setImportStatus] = useState('');
+  const [importPhase, setImportPhase] = useState<ImportPhase>('idle');
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+
+  const { progress: importProgress, label: importStatus } = phaseConfig[importPhase];
 
   const handleExport = useCallback(async () => {
     setIsExporting(true);
@@ -60,71 +105,30 @@ export default function ImportExportPage() {
         include_tags: includeTags.toString(),
         include_collections: includeCollections.toString(),
       });
-      
+
       const response = await fetch(`/api/bookmarks/export?${params.toString()}`);
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || 'Export failed');
       }
-      
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
 
-      // Improved Content-Disposition parsing
-      // 1. Check for filename* (RFC5987 - UTF-8 percent-decoded)
-      // 2. Fall back to quoted filename
-      // 3. Handle unquoted filename
-      // 4. Use fallback
-      const contentDisposition = response.headers.get('Content-Disposition');
-      let filename = `mimebookmark-export.${exportFormat}`;
+      const fallback = `mimebookmark-export.${exportFormat}`;
+      a.download = getDownloadFilename(response, fallback);
 
-      if (contentDisposition) {
-        // RFC5987: filename*=UTF-8''encoded_filename
-        const filenameStarMatch = contentDisposition.match(/filename\*\s*=\s*([^;]+)/i);
-        if (filenameStarMatch?.[1]) {
-          const rfc5987Match = /^(.*?)''(.+)$/.exec(filenameStarMatch[1]);
-          if (rfc5987Match) {
-            const [, encoding, encodedFilename] = rfc5987Match;
-            if (encoding && encodedFilename) {
-              try {
-                filename = decodeURIComponent(encodedFilename);
-              } catch {
-                // If decoding fails, continue to fallback
-              }
-            }
-          }
-        }
-
-        // Quoted filename: filename="name.ext"
-        if (filename === `mimebookmark-export.${exportFormat}`) {
-          const quotedMatch = contentDisposition.match(/filename\s*=\s*"([^"]+)"/i);
-          if (quotedMatch?.[1]) {
-            filename = quotedMatch[1];
-          }
-        }
-
-        // Unquoted filename: filename=name.ext
-        if (filename === `mimebookmark-export.${exportFormat}`) {
-          const unquotedMatch = contentDisposition.match(/filename\s*=\s*([^;]+)/i);
-          if (unquotedMatch?.[1]) {
-            filename = unquotedMatch[1].trim();
-          }
-        }
-      }
-
-      a.download = filename;
-      
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      
+
       toast({
         title: 'Export complete',
-        description: `Downloaded ${filename}`,
+        description: `Downloaded ${a.download}`,
       });
     } catch (error) {
       toast({
@@ -142,49 +146,50 @@ export default function ImportExportPage() {
       setImportError('No file selected');
       return;
     }
-    
+
     setIsImporting(true);
     setImportResult(null);
     setImportError(null);
-    setImportProgress(0);
-    setImportStatus('Preparing...');
-    
+    setImportPhase('preparing');
+
     try {
-      setImportProgress(10);
-      setImportStatus('Reading file...');
-      
+      setImportPhase('reading');
+
       const formData = new FormData();
       formData.append('file', importFile);
       formData.append('overwrite', overwriteExisting.toString());
-      
-      setImportProgress(30);
-      setImportStatus('Processing...');
-      
+
+      setImportPhase('processing');
+
       const response = await fetch('/api/bookmarks/import', {
         method: 'POST',
         body: formData,
       });
-      
-      setImportProgress(70);
-      setImportStatus('Saving...');
-      
+
+      setImportPhase('saving');
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || errorData.error || `Import failed (${response.status})`);
       }
-      
+
       const result = await response.json();
       setImportResult(result);
-      setImportProgress(100);
-      setImportStatus('Complete');
-      
+      setImportPhase('complete');
+
       router.refresh();
-      
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      setImportFile(null);
+
       toast({
         title: 'Import complete',
         description: `Imported ${result.imported} bookmarks, skipped ${result.skipped}`,
       });
     } catch (error) {
+      setImportPhase('error');
       setImportError(error instanceof Error ? error.message : 'Import failed');
       toast({
         title: 'Import failed',
@@ -192,18 +197,12 @@ export default function ImportExportPage() {
         variant: 'destructive',
       });
     } finally {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      timeoutRef.current = setTimeout(() => {
-        if (isMountedRef.current) {
-          setIsImporting(false);
-          setImportProgress(0);
-          setImportStatus('');
-        }
+      setSafeTimeout(() => {
+        setIsImporting(false);
+        setImportPhase('idle');
       }, 2000);
     }
-  }, [importFile, overwriteExisting, router, toast]);
+  }, [importFile, overwriteExisting, router, toast, setSafeTimeout]);
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -226,6 +225,7 @@ export default function ImportExportPage() {
                 Select File
               </label>
               <Input
+                ref={fileInputRef}
                 id="import-file"
                 type="file"
                 accept=".json,.html,.htm,.csv"

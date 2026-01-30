@@ -1,10 +1,18 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
-// Mock authentication helper
-async function authenticateUser(page: any) {
-  // Set mock auth cookie for testing using addInitScript
+async function authenticateUser(page: Page) {
   await page.addInitScript(() => {
     document.cookie = 'auth-token=mock-token; path=/';
+  });
+}
+
+async function mockStripeVerification(page: Page) {
+  await page.route('/api/stripe/verify-session**', route => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, message: 'Subscription activated!', plan: 'pro' }),
+    });
   });
 }
 
@@ -84,14 +92,7 @@ test.describe('Upgrade Success Page', () => {
   });
 
   test('should handle successful verification', async ({ page }) => {
-    // Mock successful API response
-    await page.route('/api/stripe/verify-session**', route => {
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, message: 'Subscription activated!', plan: 'pro' }),
-      });
-    });
+    await mockStripeVerification(page);
     await page.reload();
     await expect(page.locator('text=Upgrade Successful').first()).toBeVisible({ timeout: 15000 });
     await expect(page.locator('text=Pro').first()).toBeVisible({ timeout: 15000 });
@@ -100,25 +101,13 @@ test.describe('Upgrade Success Page', () => {
   });
 
   test('should show features after successful upgrade', async ({ page }) => {
-    await page.route('/api/stripe/verify-session**', route => {
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, message: 'Subscription activated!', plan: 'pro' }),
-      });
-    });
+    await mockStripeVerification(page);
     await page.reload();
     await expect(page.locator("text=What's included").first()).toBeVisible({ timeout: 15000 });
   });
 
   test('should allow navigating to dashboard from success page', async ({ page }) => {
-    await page.route('/api/stripe/verify-session**', route => {
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, message: 'Subscription activated!', plan: 'pro' }),
-      });
-    });
+    await mockStripeVerification(page);
     await page.reload();
     const dashboardButton = page.locator('a:has-text("Go to Dashboard")').first();
     await expect(dashboardButton).toBeVisible({ timeout: 15000 });
@@ -244,52 +233,28 @@ test.describe('Upgrade Success Page - Edge Cases', () => {
   });
 
   test('Should display success message', async ({ page }) => {
-    await page.route('/api/stripe/verify-session**', route => {
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, message: 'Subscription activated!', plan: 'pro' }),
-      });
-    });
+    await mockStripeVerification(page);
     await page.goto('/upgrade-success?session_id=mock_session&plan=pro');
     await page.reload();
     await expect(page.locator('text=Upgrade Successful')).toBeVisible({ timeout: 15000 });
   });
 
   test('Should show access to new features', async ({ page }) => {
-    await page.route('/api/stripe/verify-session**', route => {
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, message: 'Subscription activated!', plan: 'pro' }),
-      });
-    });
+    await mockStripeVerification(page);
     await page.goto('/upgrade-success?session_id=mock_session&plan=pro');
     await page.reload();
     await expect(page.locator("text=What's included").first()).toBeVisible({ timeout: 15000 });
   });
 
   test('Should have button to start using features', async ({ page }) => {
-    await page.route('/api/stripe/verify-session**', route => {
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, message: 'Subscription activated!', plan: 'pro' }),
-      });
-    });
+    await mockStripeVerification(page);
     await page.goto('/upgrade-success?session_id=mock_session&plan=pro');
     await page.reload();
     await expect(page.locator('a:has-text("Go to Dashboard")').first()).toBeVisible({ timeout: 15000 });
   });
 
   test('Should allow navigating to dashboard', async ({ page }) => {
-    await page.route('/api/stripe/verify-session**', route => {
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, message: 'Subscription activated!', plan: 'pro' }),
-      });
-    });
+    await mockStripeVerification(page);
     await page.goto('/upgrade-success?session_id=mock_session&plan=pro');
     await page.reload();
     const dashboardButton = page.locator('a:has-text("Go to Dashboard")').first();

@@ -73,7 +73,7 @@ test.describe('Import Functionality', () => {
   });
 
   test('should show import results', async ({ page }) => {
-    await page.route('**/api/bookmarks/import/**', async (route) => {
+    await page.route('**/api/bookmarks/import**', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
