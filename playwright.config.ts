@@ -31,7 +31,7 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:3000',
-    reuseExistingServer: false,
+    reuseExistingServer: true,
     env: {
       E2E_USE_MOCK: process.env.E2E_USE_MOCK || 'true',
     },
