@@ -156,12 +156,20 @@ export async function POST(request: NextRequest) {
     }
 
     if (body.action === 'cancel') {
-      const { data: subscription } = await supabase
+      const { data: subscription, error: subscriptionError } = await supabase
         .from('subscriptions')
         .select('*')
         .eq('user_id', user.id)
         .eq('status', 'active')
         .single();
+
+      if (subscriptionError) {
+        console.error('Error fetching subscription:', subscriptionError);
+        return NextResponse.json(
+          { error: 'Failed to fetch subscription' },
+          { status: 500 }
+        );
+      }
 
       if (!subscription) {
         return NextResponse.json(

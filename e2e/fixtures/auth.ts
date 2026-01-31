@@ -195,15 +195,30 @@ async function mockUserEndpoints(page: Page) {
  * @param page - Playwright Page instance
  */
 async function mockBookmarkEndpoints(page: Page) {
-  const fulfillEmptyBookmarks = async (route: any) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ bookmarks: [], total: 0 }),
-    });
-  };
-  await page.route('**/api/bookmarks', fulfillEmptyBookmarks);
-  await page.route('**/api/bookmarks/**', fulfillEmptyBookmarks);
+  await page.route('**/api/bookmarks', async route => {
+    const method = route.request().method();
+    if (method === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ bookmarks: [], total: 0 }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+  await page.route('**/api/bookmarks/**', async route => {
+    const method = route.request().method();
+    if (method === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ bookmarks: [], total: 0 }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
 }
 
 /**
