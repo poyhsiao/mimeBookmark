@@ -137,13 +137,21 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     if (body.action === 'portal') {
-      const { data: { portal } } = await supabase
+      const { data, error: rpcError } = await supabase
         .rpc('get_stripe_portal_url', {
           user_id: user.id,
           return_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing`,
         });
 
-      if (!portal || !portal.portal_url) {
+      if (rpcError) {
+        console.error('Error calling get_stripe_portal_url:', rpcError);
+        return NextResponse.json(
+          { error: rpcError.message || 'Failed to generate portal URL' },
+          { status: 500 }
+        );
+      }
+
+      if (!data?.portal_url) {
         return NextResponse.json(
           { error: 'Failed to generate portal URL' },
           { status: 500 }
@@ -151,7 +159,7 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json({
-        portalUrl: portal.portal_url,
+        portalUrl: data.portal_url,
       });
     }
 
