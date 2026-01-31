@@ -1,20 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/ssr';
-import { getPlanId } from '@/lib/subscription/plans';
+import { createClient } from '@/lib/supabase/server';
 import { SUBSCRIPTION_PLANS } from '@/lib/subscription/plans';
 
 export async function GET(request: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
     const { data: { user }, error: userError } = await supabase.auth.getUser();
 
     if (userError || !user) {
@@ -131,13 +122,14 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !user) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Failed to get user' },
         { status: 401 }
       );
     }
@@ -145,16 +137,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     if (body.action === 'portal') {
-      // Open Stripe customer portal
       const { data: { portal } } = await supabase
         .rpc('get_stripe_portal_url', {
-          params: {
-            user_id: body.userId,
+          user_id: user.id,
           return_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing`,
-          },
         });
 
-      if (!portal.portal_url) {
+      if (!portal || !portal.portal_url) {
         return NextResponse.json(
           { error: 'Failed to generate portal URL' },
           { status: 500 }
@@ -167,13 +156,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (body.action === 'cancel') {
-      const userId = body.userId;
-
-      // Get user's current subscription
       const { data: subscription } = await supabase
         .from('subscriptions')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', user.id)
         .eq('status', 'active')
         .single();
 
@@ -184,20 +170,26 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Cancel subscription
       const { error: cancelError } = await supabase
         .from('subscriptions')
         .update({
           status: 'canceled',
-        canceled_at: new Date().toISOString(),
+          canceled_at: new Date().toISOString(),
         })
         .eq('id', subscription.id);
 
-      // Send webhook event
-      await supabase
+      if (cancelError) {
+        console.error('Error canceling subscription:', cancelError);
+        return NextResponse.json(
+          { error: 'Failed to cancel subscription' },
+          { status: 500 }
+        );
+      }
+
+      const { error: eventError } = await supabase
         .from('subscription_events')
         .insert({
-          user_id: userId,
+          user_id: user.id,
           event_type: 'subscription_canceled',
           event_data: {
             subscription_id: subscription.id,
@@ -206,6 +198,10 @@ export async function POST(request: NextRequest) {
             created_at: new Date().toISOString(),
           },
         });
+
+      if (eventError) {
+        console.error('Failed to log subscription event:', eventError);
+      }
 
       return NextResponse.json({
         success: true,

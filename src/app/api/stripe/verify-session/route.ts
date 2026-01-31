@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/ssr';
 
 export async function POST(request: NextRequest) {
-  const supabase = createClient();
-
   try {
     const body = await request.json();
     const { sessionId, planId } = body;
@@ -22,16 +19,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify session with Stripe
-    const response = await fetch('https://api.stripe.com/v1/sessions/' + sessionId, {
-      method: 'POST',
+    const response = await fetch(`https://api.stripe.com/v1/checkout/sessions/${sessionId}`, {
+      method: 'GET',
       headers: {
         'Authorization': `Bearer ${process.env.STRIPE_SECRET_KEY}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams({
-        'expand[]': 'total_cents_amount',
-      }).toString(),
     });
 
     if (!response.ok) {
@@ -45,7 +37,6 @@ export async function POST(request: NextRequest) {
 
     const sessionData = await response.json();
 
-    // Check if payment was successful
     if (sessionData.payment_status === 'paid') {
       return NextResponse.json({
         success: true,

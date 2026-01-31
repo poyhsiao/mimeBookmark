@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { CheckCircle, ArrowRight, Loader2, Crown, Sparkles, XCircle, RefreshCw, Calendar, CreditCard } from 'lucide-react';
+import { CheckCircle, ArrowRight, Loader2, Crown, Sparkles, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { SUBSCRIPTION_PLANS, type PlanType } from '@/lib/subscription/plans';
@@ -35,12 +35,9 @@ const PRICING_PLANS: PricingPlan[] = Object.entries(SUBSCRIPTION_PLANS).map(([ke
 
 function UpgradeSuccessContent() {
   const searchParams = useSearchParams();
-  const [uiStatus, setUiStatus] = useState<'initial' | 'verified' | 'show-features'>('initial');
-  const [requestState, setRequestState] = useState<'idle' | 'verifying' | 'processing'>('idle');
+  const [uiStatus, setUiStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
   const [plan, setPlan] = useState<PricingPlan | null>(null);
-  
-  // Separate states for cleaner logic
 
   useEffect(() => {
     const sessionId = searchParams.get('session_id');
@@ -63,10 +60,14 @@ function UpgradeSuccessContent() {
     }
 
     const verifySession = async () => {
-      setRequestState('processing');
       try {
-        const params = new URLSearchParams({ session_id: sessionId });
-        const response = await fetch(`/api/stripe/verify-session?${params.toString()}`);
+        const response = await fetch('/api/stripe/verify-session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ sessionId, planId }),
+        });
 
         if (response.ok) {
           const data = await response.json();
@@ -86,8 +87,6 @@ function UpgradeSuccessContent() {
         console.error('Failed to verify subscription session:', error);
         setUiStatus('error');
         setMessage('An error occurred while verifying your subscription');
-      } finally {
-        setRequestState('idle');
       }
     };
 

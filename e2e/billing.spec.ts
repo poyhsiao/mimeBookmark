@@ -1,19 +1,18 @@
 import { test, expect, type Page } from '@playwright/test';
 import { authenticateUser, mockBillingEndpoints } from './fixtures/auth';
 
-async function authenticateUser(page: Page) {
-  await page.addInitScript(() => {
-    document.cookie = 'auth-token=mock-token; path=/';
-  });
-}
-
 async function mockStripeVerification(page: Page) {
-  await page.route('/api/stripe/verify-session**', route => {
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ success: true, message: 'Subscription activated!', plan: 'pro' }),
-    });
+  await page.route('**/api/stripe/verify-session', route => {
+    const method = route.request().method();
+    if (method === 'POST') {
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, message: 'Subscription activated!', plan: 'pro' }),
+      });
+    } else {
+      route.continue();
+    }
   });
 }
 
@@ -181,22 +180,80 @@ test.describe('Subscription Management', () => {
 });
 
 test.describe('Billing - Edge Cases', () => {
-  test.beforeEach(async ({ page }) => {
-    await authenticateUser(page);
-    await mockBillingEndpoints(page);
-  });
-
   test('Handle expired subscription', async ({ page }) => {
+    await authenticateUser(page);
+    await page.route('**/api/me/billing', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          currentPlan: 'pro',
+          status: 'expired',
+          nextBillingDate: null,
+          cardLast4: null,
+          cardExpiry: null,
+          invoices: [],
+          usage: {
+            bookmarksUsed: 0,
+            bookmarksLimit: 10000,
+            collectionsUsed: 0,
+            collectionsLimit: 100,
+          },
+        }),
+      });
+    });
     await page.goto('/dashboard/billing');
     await expect(page.locator('text=Subscription Expired').or(page.locator('text=Renew Now'))).toBeVisible();
   });
 
   test('Handle failed payment', async ({ page }) => {
+    await authenticateUser(page);
+    await page.route('**/api/me/billing', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          currentPlan: 'pro',
+          status: 'past_due',
+          nextBillingDate: null,
+          cardLast4: null,
+          cardExpiry: null,
+          invoices: [],
+          usage: {
+            bookmarksUsed: 0,
+            bookmarksLimit: 10000,
+            collectionsUsed: 0,
+            collectionsLimit: 100,
+          },
+        }),
+      });
+    });
     await page.goto('/dashboard/billing');
     await expect(page.locator('text=Payment Failed').or(page.locator('text=Update Payment'))).toBeVisible();
   });
 
   test('Show upgrade prompt for free users accessing pro features', async ({ page }) => {
+    await authenticateUser(page);
+    await page.route('**/api/me/billing', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          currentPlan: 'free',
+          status: 'active',
+          nextBillingDate: null,
+          cardLast4: null,
+          cardExpiry: null,
+          invoices: [],
+          usage: {
+            bookmarksUsed: 10,
+            bookmarksLimit: 50,
+            collectionsUsed: 2,
+            collectionsLimit: 5,
+          },
+        }),
+      });
+    });
     await page.goto('/dashboard/billing');
     await expect(page.locator('text=Upgrade to Pro').first()).toBeVisible();
   });

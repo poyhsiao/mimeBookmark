@@ -93,20 +93,18 @@ test.describe('Bookmarks - Regression Tests', () => {
 
   test('should create a new bookmark', async ({ page }) => {
     await page.route('**/api/bookmarks', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ bookmarks: [], total: 0 }),
-      });
-    });
-
-    await page.route('**/api/bookmarks', async (route) => {
       const method = route.request().method();
       if (method === 'POST') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({ id: 'bookmark-123', url: 'https://example.com', title: 'Example Bookmark' }),
+        });
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ bookmarks: [], total: 0 }),
         });
       }
     });
@@ -121,23 +119,21 @@ test.describe('Bookmarks - Regression Tests', () => {
 
   test('should edit an existing bookmark', async ({ page }) => {
     await page.route('**/api/bookmarks', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          bookmarks: [{ id: 'bookmark-123', url: 'https://example.com', title: 'Example Bookmark' }],
-          total: 1,
-        }),
-      });
-    });
-
-    await page.route('**/api/bookmarks/**', async (route) => {
       const method = route.request().method();
       if (method === 'PUT') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({ id: 'bookmark-123', url: 'https://example.com', title: 'Updated Bookmark' }),
+        });
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            bookmarks: [{ id: 'bookmark-123', url: 'https://example.com', title: 'Example Bookmark' }],
+            total: 1,
+          }),
         });
       }
     });
@@ -155,23 +151,21 @@ test.describe('Bookmarks - Regression Tests', () => {
 
   test('should delete a bookmark', async ({ page }) => {
     await page.route('**/api/bookmarks', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          bookmarks: [{ id: 'bookmark-123', url: 'https://example.com', title: 'Example Bookmark' }],
-          total: 1,
-        }),
-      });
-    });
-
-    await page.route('**/api/bookmarks/**', async (route) => {
       const method = route.request().method();
       if (method === 'DELETE') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({ success: true }),
+        });
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            bookmarks: [{ id: 'bookmark-123', url: 'https://example.com', title: 'Example Bookmark' }],
+            total: 1,
+          }),
         });
       }
     });

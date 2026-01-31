@@ -242,7 +242,7 @@ async function mockTagEndpoints(page: Page) {
  * Mocks billing-related API endpoints
  * @param page - Playwright Page instance
  */
-async function mockBillingEndpoints(page: Page) {
+export async function mockBillingEndpoints(page: Page) {
   const fulfillBillingData = async (route: any) => {
     const url = new URL(route.request().url());
     const pathname = url.pathname;
