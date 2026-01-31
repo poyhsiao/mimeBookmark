@@ -74,7 +74,7 @@ function UpgradeSuccessContent() {
           setUiStatus('success');
           setMessage(data.message || 'Your subscription has been activated successfully!');
 
-          const verifiedPlan = getPlanById(data.plan ?? null);
+          const verifiedPlan = getPlanById(data.planId ?? null);
           if (verifiedPlan) {
             setPlan(verifiedPlan);
           }
