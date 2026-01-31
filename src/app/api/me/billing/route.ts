@@ -47,14 +47,20 @@ export async function GET(request: NextRequest) {
     if (profile.stripe_customer_id) {
       try {
         // Fetch subscription data from Stripe
+        const subscriptionsController = new AbortController();
+        const subscriptionsTimeout = setTimeout(() => subscriptionsController.abort(), 10000);
+        
         const subscriptionsResponse = await fetch(
           `https://api.stripe.com/v1/customers/${profile.stripe_customer_id}/subscriptions`,
           {
             headers: {
               'Authorization': `Bearer ${process.env.STRIPE_SECRET_KEY}`,
             },
+            signal: subscriptionsController.signal,
           }
         );
+
+        clearTimeout(subscriptionsTimeout);
 
         if (subscriptionsResponse.ok) {
           const subscriptions = await subscriptionsResponse.json();
@@ -74,14 +80,20 @@ export async function GET(request: NextRequest) {
         }
 
         // Fetch invoices
+        const invoicesController = new AbortController();
+        const invoicesTimeout = setTimeout(() => invoicesController.abort(), 10000);
+        
         const invoicesResponse = await fetch(
           `https://api.stripe.com/v1/invoices?customer=${profile.stripe_customer_id}`,
           {
             headers: {
               'Authorization': `Bearer ${process.env.STRIPE_SECRET_KEY}`,
             },
+            signal: invoicesController.signal,
           }
         );
+
+        clearTimeout(invoicesTimeout);
 
         if (invoicesResponse.ok) {
           const invoicesData = await invoicesResponse.json();

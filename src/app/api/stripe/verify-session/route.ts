@@ -14,15 +14,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const { sessionId } = body;
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { error: 'Invalid JSON' },
+      { status: 400 }
+    );
+  }
 
-    if (!sessionId) {
-      return NextResponse.json(
-        { error: 'Session ID is required' },
-        { status: 400 }
-      );
-    }
+  const { sessionId } = body ?? {};
+
+  if (typeof sessionId !== 'string' || sessionId.trim().length === 0) {
+    return NextResponse.json(
+      { error: 'Session ID is required' },
+      { status: 400 }
+    );
+  }
 
     const response = await fetch(`https://api.stripe.com/v1/checkout/sessions/${sessionId}`, {
       method: 'GET',
@@ -80,6 +89,15 @@ export async function POST(request: NextRequest) {
       planId: sessionData.metadata.planId,
     });
   } catch (error) {
+    clearTimeout(timeoutId);
+
+    if (error instanceof Error && error.name === 'AbortError') {
+      return NextResponse.json(
+        { error: 'Verification timeout' },
+        { status: 504 }
+      );
+    }
+
     console.error('Error verifying session:', error);
     return NextResponse.json(
       { error: 'Failed to verify session' },
