@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { authenticateUser, mockBillingEndpoints } from './fixtures/auth';
 
 async function authenticateUser(page: Page) {
   await page.addInitScript(() => {
@@ -138,23 +139,20 @@ test.describe('Stripe Checkout Flow', () => {
 test.describe('Stripe Webhook Handling', () => {
   test.beforeEach(async ({ page }) => {
     await authenticateUser(page);
+    await mockBillingEndpoints(page);
   });
 
-  test.skip('/dashboard/billing page does not exist yet - TODO: Create billing page', async ({ page }) => {
-    // This test is skipped because the /dashboard/billing page doesn't exist yet
-    // TODO: Create the billing page at src/app/(dashboard)/dashboard/billing/page.tsx
+  test('should display billing page', async ({ page }) => {
     await page.goto('/dashboard/billing');
     await expect(page.locator('h1')).toContainText('Billing');
   });
 
-  test.skip('Subscription status updates after webhook - requires billing page', async ({ page }) => {
-    // Skipped - requires billing page to be created
+  test('Subscription status updates after webhook', async ({ page }) => {
     await page.goto('/dashboard/billing');
     await expect(page.locator('text=Pro')).toBeVisible();
   });
 
-  test.skip('Handle subscription cancellation webhook - requires billing page', async ({ page }) => {
-    // Skipped - requires billing page to be created
+  test('Handle subscription cancellation webhook', async ({ page }) => {
     await page.goto('/dashboard/billing');
     await expect(page.locator('text=Free')).toBeVisible();
   });
@@ -163,22 +161,20 @@ test.describe('Stripe Webhook Handling', () => {
 test.describe('Subscription Management', () => {
   test.beforeEach(async ({ page }) => {
     await authenticateUser(page);
+    await mockBillingEndpoints(page);
   });
 
-  test.skip('Display current subscription details - requires billing page', async ({ page }) => {
-    // Skipped - requires billing page to be created
+  test('Display current subscription details', async ({ page }) => {
     await page.goto('/dashboard/billing');
     await expect(page.locator('text=Current Plan')).toBeVisible();
   });
 
-  test.skip('Show next billing date for active subscriptions - requires billing page', async ({ page }) => {
-    // Skipped - requires billing page to be created
+  test('Show next billing date for active subscriptions', async ({ page }) => {
     await page.goto('/dashboard/billing');
     await expect(page.locator('text=Next billing').first()).toBeVisible();
   });
 
-  test.skip('Allow viewing invoice history - requires billing page', async ({ page }) => {
-    // Skipped - requires billing page to be created
+  test('Allow viewing invoice history', async ({ page }) => {
     await page.goto('/dashboard/billing');
     await expect(page.locator('a:has-text("View Invoices")')).toBeVisible();
   });
@@ -187,22 +183,20 @@ test.describe('Subscription Management', () => {
 test.describe('Billing - Edge Cases', () => {
   test.beforeEach(async ({ page }) => {
     await authenticateUser(page);
+    await mockBillingEndpoints(page);
   });
 
-  test.skip('Handle expired subscription - requires billing page', async ({ page }) => {
-    // Skipped - requires billing page to be created
+  test('Handle expired subscription', async ({ page }) => {
     await page.goto('/dashboard/billing');
     await expect(page.locator('text=Subscription Expired').or(page.locator('text=Renew Now'))).toBeVisible();
   });
 
-  test.skip('Handle failed payment - requires billing page', async ({ page }) => {
-    // Skipped - requires billing page to be created
+  test('Handle failed payment', async ({ page }) => {
     await page.goto('/dashboard/billing');
     await expect(page.locator('text=Payment Failed').or(page.locator('text=Update Payment'))).toBeVisible();
   });
 
-  test.skip('Show upgrade prompt for free users accessing pro features - requires billing page', async ({ page }) => {
-    // Skipped - requires billing page to be created
+  test('Show upgrade prompt for free users accessing pro features', async ({ page }) => {
     await page.goto('/dashboard/billing');
     await expect(page.locator('text=Upgrade to Pro').first()).toBeVisible();
   });
@@ -214,14 +208,12 @@ test.describe('Billing Mobile Responsiveness', () => {
     await page.setViewportSize({ width: 375, height: 812 });
   });
 
-  test.skip('Display billing page on mobile - requires billing page', async ({ page }) => {
-    // Skipped - requires billing page to be created
+  test('Display billing page on mobile', async ({ page }) => {
     await page.goto('/dashboard/billing');
     await expect(page.locator('h1')).toContainText('Billing');
   });
 
-  test.skip('Stack subscription plans on mobile - requires billing page', async ({ page }) => {
-    // Skipped - requires billing page to be created
+  test('Stack subscription plans on mobile', async ({ page }) => {
     await page.goto('/dashboard/billing');
     await expect(page.locator('.grid').first()).toBeVisible();
   });
