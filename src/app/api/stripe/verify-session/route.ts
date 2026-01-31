@@ -70,9 +70,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Note: Subscription activation is handled asynchronously by the Stripe webhook
+    // (checkout.session.completed in src/lib/stripe/webhook.ts), which updates the
+    // profiles table (subscription_tier, subscription_status, etc.). Monitor webhook
+    // delivery and implement retries for webhook failures to ensure activation completes.
     return NextResponse.json({
       success: true,
-      message: 'Subscription activated successfully',
+      message: 'Payment verified successfully. Subscription activation will be completed asynchronously via webhook.',
       planId: sessionData.metadata.planId,
     });
   } catch (error) {
