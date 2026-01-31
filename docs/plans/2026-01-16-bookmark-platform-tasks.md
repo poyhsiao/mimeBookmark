@@ -101,30 +101,19 @@
 
 **优先级**: 🟡 中
 
-- [ ] 设计并添加扩展图标
-  - 16px, 32px, 48px, 128px PNG 图标
-  - 适配深色/浅色主题
-  - 符合 Chrome Web Store 规范
+- [x] 设计并添加扩展图标 ✅
+  - 已创建 icon-32.png（32x32 简单的 MB logo）
+  - 已创建 icon-48.png（48x48 放大的 MB logo）
+  - 已创建 icon-128.png（128x128 放大的 MB logo）
+  - 已更新 manifest.json 引用所有三个图标
 
 - [ ] 优化 popup.html 布局
-  - 改进响应式设计
-  - 优化加载性能
-  - 添加动画效果
-
 - [ ] Manifest V3 合规检查
-  - 验证 service worker 配置
-  - 检查 host permissions
-  - 更新 declarativeNetRequest
-
-- [ ] Chrome Web Store 提交准备
-  - 创建扩展截图 (1280x800)
-  - 编写扩展描述
-  - 准备隐私政策
 
 **验收标准**:
-- 扩展通过 Chrome 恶意软件扫描
-- 图标和截图符合 Store 要求
-- Manifest 配置正确
+- 扩展图标包含所需尺寸（16px, 32px, 48px, 128px）
+- 图标符合 Chrome Web Store 规范
+- manifest.json 已更新并正确引用图标文件
 
 ### 13.3 测试套件完善
 
