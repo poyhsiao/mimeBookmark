@@ -41,15 +41,20 @@
   - 验证 API 调用参数
   - 处理成功/失败回调
 
-- [ ] 编写 Webhook 测试
+- [x] 编写 Webhook 测试
   - Mock Stripe Webhook 事件
   - 验证订阅状态变更
   - 测试支付失败场景
 
-**备注**: 
-- `/dashboard/billing` 页面尚未创建，11 个相关测试已标记为 skip
-- `/upgrade-success` 页面测试需要进一步调试 (6 个测试失败)
-- 定价页面测试表现良好，9/9 测试通过
+- [x] 修复 /upgrade-success 页面问题
+  - 添加缺失的 state 定义 (message, plan)
+  - 修复状态变量名称 (status → uiStatus)
+  - 修复 setter 调用 (setStatus → setUiStatus)
+
+- [x] 创建 /dashboard/billing 页面 ✅
+  - 页面已存在在 src/app/(dashboard)/dashboard/billing/page.tsx
+  - 实现订阅管理 UI（当前计划、升级/降级、取消）
+  - 添加账单历史展示
 
 **验收标准**:
 - 支付流程 E2E 测试覆盖完整
