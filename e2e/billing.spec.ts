@@ -8,7 +8,7 @@ async function mockStripeVerification(page: Page) {
       route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ success: true, message: 'Subscription activated!', plan: 'pro' }),
+        body: JSON.stringify({ success: true, message: 'Subscription activated!', planId: 'pro' }),
       });
     } else {
       route.continue();
@@ -182,6 +182,8 @@ test.describe('Subscription Management', () => {
 test.describe('Billing - Edge Cases', () => {
   test('Handle expired subscription', async ({ page }) => {
     await authenticateUser(page);
+    await mockBillingEndpoints(page);
+    await page.unroute('**/api/me/billing');
     await page.route('**/api/me/billing', async (route) => {
       await route.fulfill({
         status: 200,
@@ -208,6 +210,8 @@ test.describe('Billing - Edge Cases', () => {
 
   test('Handle failed payment', async ({ page }) => {
     await authenticateUser(page);
+    await mockBillingEndpoints(page);
+    await page.unroute('**/api/me/billing');
     await page.route('**/api/me/billing', async (route) => {
       await route.fulfill({
         status: 200,
@@ -234,6 +238,8 @@ test.describe('Billing - Edge Cases', () => {
 
   test('Show upgrade prompt for free users accessing pro features', async ({ page }) => {
     await authenticateUser(page);
+    await mockBillingEndpoints(page);
+    await page.unroute('**/api/me/billing');
     await page.route('**/api/me/billing', async (route) => {
       await route.fulfill({
         status: 200,
@@ -262,6 +268,7 @@ test.describe('Billing - Edge Cases', () => {
 test.describe('Billing Mobile Responsiveness', () => {
   test.beforeEach(async ({ page }) => {
     await authenticateUser(page);
+    await mockBillingEndpoints(page);
     await page.setViewportSize({ width: 375, height: 812 });
   });
 

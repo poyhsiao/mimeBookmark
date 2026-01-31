@@ -111,9 +111,10 @@
 - [ ] Manifest V3 合规检查
 
 **验收标准**:
-- 扩展图标包含所需尺寸（16px, 32px, 48px, 128px）
+- 扩展图标包含所需尺寸（32px, 48px, 128px）
 - 图标符合 Chrome Web Store 规范
 - manifest.json 已更新并正确引用图标文件
+- （如需 16px，请补充 icon-16.png 并更新 manifest.json）
 
 ### 13.3 测试套件完善
 
@@ -132,13 +133,13 @@
   - 修复测试环境配置
   - 提出添加 20 个新回归测试用例
 
-- [x] 修复 66 个 skipped 测试
-  - 添加 billing 相关的 mock 数据
-  - 移除 E2E 模式依赖
-  - 使用 playwright 的 test.use() API
+- [ ] 修复 66 个 skipped 测试
+   - 添加 billing 相关的 mock 数据
+   - 移除 E2E 模式依赖
+   - 使用 playwright 的 test.use() API
 
-- [x] 修复 6 个未运行测试
- - 排查所有测试的 beforeEach 和测试条件
+- [ ] 修复 6 个未运行测试
+  - 排查所有测试的 beforeEach 和测试条件
    - 确保测试环境配置正确
 
  - [ ] 核心功能回归测试范围与优先级规划

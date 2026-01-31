@@ -1,20 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
+  const supabase = await createClient();
+
   try {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
-    const { sessionId, planId } = body;
+    const { sessionId } = body;
 
     if (!sessionId) {
       return NextResponse.json(
         { error: 'Session ID is required' },
-        { status: 400 }
-      );
-    }
-
-    if (!planId) {
-      return NextResponse.json(
-        { error: 'Plan ID is required' },
         { status: 400 }
       );
     }
@@ -37,17 +42,38 @@ export async function POST(request: NextRequest) {
 
     const sessionData = await response.json();
 
-    if (sessionData.payment_status === 'paid') {
+    if (sessionData.payment_status !== 'paid') {
       return NextResponse.json({
-        success: true,
-        message: 'Subscription activated successfully',
-        planId: planId,
-      });
+        error: 'Payment was not successful',
+        message: `Payment status: ${sessionData.payment_status}`,
+      }, { status: 402 });
+    }
+
+    if (!sessionData.metadata || !sessionData.metadata.userId) {
+      return NextResponse.json(
+        { error: 'Session metadata is missing userId' },
+        { status: 400 }
+      );
+    }
+
+    if (sessionData.metadata.userId !== user.id) {
+      return NextResponse.json(
+        { error: 'Session does not belong to authenticated user' },
+        { status: 403 }
+      );
+    }
+
+    if (!sessionData.metadata.planId) {
+      return NextResponse.json(
+        { error: 'Session metadata is missing planId' },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json({
-      error: 'Payment was not successful',
-      message: `Payment status: ${sessionData.payment_status}`,
+      success: true,
+      message: 'Subscription activated successfully',
+      planId: sessionData.metadata.planId,
     });
   } catch (error) {
     console.error('Error verifying session:', error);
