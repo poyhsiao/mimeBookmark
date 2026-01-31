@@ -26,19 +26,25 @@ export async function POST(request: NextRequest) {
 
   const { sessionId } = body ?? {};
 
-  if (typeof sessionId !== 'string' || sessionId.trim().length === 0) {
+   if (typeof sessionId !== 'string' || sessionId.trim().length === 0) {
     return NextResponse.json(
       { error: 'Session ID is required' },
       { status: 400 }
     );
   }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
     const response = await fetch(`https://api.stripe.com/v1/checkout/sessions/${sessionId}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${process.env.STRIPE_SECRET_KEY}`,
       },
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -89,8 +95,6 @@ export async function POST(request: NextRequest) {
       planId: sessionData.metadata.planId,
     });
   } catch (error) {
-    clearTimeout(timeoutId);
-
     if (error instanceof Error && error.name === 'AbortError') {
       return NextResponse.json(
         { error: 'Verification timeout' },
