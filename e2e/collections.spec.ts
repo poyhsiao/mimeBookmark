@@ -332,14 +332,6 @@ test.describe('Collections - Regression Tests', () => {
         await route.fallback();
       }
     });
-      } else {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ collections: [], total: 0 }),
-        });
-      }
-    });
 
     await page.goto('/dashboard/collections');
 

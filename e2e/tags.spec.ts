@@ -197,12 +197,23 @@ test.describe('Tags - Regression Tests', () => {
       }
     });
 
-    await page.route('**/api/bookmarks', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ bookmarks: [], total: 0 }),
-      });
+    await page.route('**/api/bookmarks**', async (route) => {
+      const method = route.request().method();
+      if (method === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ bookmarks: [], total: 0 }),
+        });
+      } else if (method === 'POST') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ id: 'bookmark-1', title: 'Test', url: 'https://example.com' }),
+        });
+      } else {
+        await route.fallback();
+      }
     });
 
     await page.goto('/dashboard/bookmarks');
