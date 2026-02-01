@@ -195,15 +195,30 @@ async function mockUserEndpoints(page: Page) {
  * @param page - Playwright Page instance
  */
 async function mockBookmarkEndpoints(page: Page) {
-  const fulfillEmptyBookmarks = async (route: any) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ bookmarks: [], total: 0 }),
-    });
-  };
-  await page.route('**/api/bookmarks', fulfillEmptyBookmarks);
-  await page.route('**/api/bookmarks/**', fulfillEmptyBookmarks);
+  await page.route('**/api/bookmarks', async route => {
+    const method = route.request().method();
+    if (method === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ bookmarks: [], total: 0 }),
+      });
+    } else {
+      await route.fallback();
+    }
+  });
+  await page.route('**/api/bookmarks/**', async route => {
+    const method = route.request().method();
+    if (method === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ bookmarks: [], total: 0 }),
+      });
+    } else {
+      await route.fallback();
+    }
+  });
 }
 
 /**
@@ -236,6 +251,90 @@ async function mockTagEndpoints(page: Page) {
   };
   await page.route('**/api/tags', fulfillEmptyTags);
   await page.route('**/api/tags/**', fulfillEmptyTags);
+}
+
+/**
+ * Mocks billing-related API endpoints
+ * @param page - Playwright Page instance
+ */
+export async function mockBillingEndpoints(page: Page) {
+  const fulfillBillingData = async (route: any) => {
+    const url = new URL(route.request().url());
+    const pathname = url.pathname;
+
+    if (pathname.endsWith('/settings')) {
+      const body = {
+        settings: {
+          displayName: 'Test User',
+          avatarUrl: null,
+          timezone: 'UTC',
+          subscriptionTier: 'pro',
+          bookmarksLimit: 10000,
+          collectionsLimit: 100,
+          tagsLimit: 1000,
+          preferences: {
+            theme: 'system',
+            language: 'en',
+            email_notifications: true,
+          },
+        },
+      };
+      
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(body),
+      });
+      return;
+    }
+
+    if (pathname.endsWith('/stats')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          stats: {
+            totalBookmarks: 100,
+            archivedBookmarks: 10,
+            favoriteBookmarks: 20,
+            readLaterBookmarks: 5,
+            totalCollections: 15,
+            totalTags: 25,
+          },
+        }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        currentPlan: 'pro',
+        nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        cardLast4: '4242',
+        cardExpiry: '12/2027',
+        invoices: [
+          {
+            id: 'inv_123',
+            date: Math.floor(Date.now() / 1000),
+            amount: 15.00,
+            status: 'paid',
+            hostedInvoiceUrl: 'https://example.com/invoice/inv_123',
+          },
+        ],
+        usage: {
+          bookmarksUsed: 100,
+          bookmarksLimit: 10000,
+          collectionsUsed: 15,
+          collectionsLimit: 100,
+        },
+      }),
+    });
+  };
+  await page.route('**/api/me/billing', fulfillBillingData);
+  await page.route('**/api/me/settings', fulfillBillingData);
+  await page.route('**/api/me/stats', fulfillBillingData);
 }
 
 

@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // GET /api/annotations/bookmark/:id - Get all annotations for a specific bookmark
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -14,7 +14,7 @@ export async function GET(
   }
 
   try {
-    const { id: bookmarkId } = params;
+    const { id: bookmarkId } = await params;
 
     // Verify the bookmark belongs to the user
     const { data: bookmark, error: bookmarkError } = await supabase

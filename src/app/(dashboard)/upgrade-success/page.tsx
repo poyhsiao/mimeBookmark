@@ -35,7 +35,7 @@ const PRICING_PLANS: PricingPlan[] = Object.entries(SUBSCRIPTION_PLANS).map(([ke
 
 function UpgradeSuccessContent() {
   const searchParams = useSearchParams();
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
+  const [uiStatus, setUiStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
   const [plan, setPlan] = useState<PricingPlan | null>(null);
 
@@ -44,7 +44,7 @@ function UpgradeSuccessContent() {
     const planId = searchParams.get('plan');
 
     if (!sessionId) {
-      setStatus('error');
+      setUiStatus('error');
       setMessage('Invalid session. Please try upgrading again.');
       return;
     }
@@ -61,26 +61,31 @@ function UpgradeSuccessContent() {
 
     const verifySession = async () => {
       try {
-        const params = new URLSearchParams({ session_id: sessionId });
-        const response = await fetch(`/api/stripe/verify-session?${params.toString()}`);
+        const response = await fetch('/api/stripe/verify-session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ sessionId, planId }),
+        });
 
         if (response.ok) {
           const data = await response.json();
-          setStatus('success');
+          setUiStatus('success');
           setMessage(data.message || 'Your subscription has been activated successfully!');
 
-          const verifiedPlan = getPlanById(data.plan ?? null);
+          const verifiedPlan = getPlanById(data.planId ?? null);
           if (verifiedPlan) {
             setPlan(verifiedPlan);
           }
         } else {
           const errorData = await response.json().catch(() => ({}));
-          setStatus('error');
+          setUiStatus('error');
           setMessage(errorData.error || 'Failed to verify your subscription');
         }
       } catch (error) {
         console.error('Failed to verify subscription session:', error);
-        setStatus('error');
+        setUiStatus('error');
         setMessage('An error occurred while verifying your subscription');
       }
     };
@@ -92,7 +97,7 @@ function UpgradeSuccessContent() {
     <div className="container mx-auto py-16 px-4">
       <Card className="max-w-md mx-auto">
         <CardHeader className="text-center space-y-4">
-          {status === 'loading' && (
+          {uiStatus === 'loading' && (
             <>
               <div className="flex justify-center">
                 <Loader2 className="w-16 h-16 animate-spin text-primary" />
@@ -102,7 +107,7 @@ function UpgradeSuccessContent() {
             </>
           )}
 
-          {status === 'success' && (
+          {uiStatus === 'success' && (
             <>
               <div className="flex justify-center">
                 <CheckCircle className="w-16 h-16 text-green-500" />
@@ -115,7 +120,7 @@ function UpgradeSuccessContent() {
             </>
           )}
 
-          {status === 'error' && (
+          {uiStatus === 'error' && (
             <>
               <div className="flex justify-center">
                 <XCircle className="w-16 h-16 text-red-500" />
@@ -127,7 +132,7 @@ function UpgradeSuccessContent() {
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {status === 'success' && plan && (
+          {uiStatus === 'success' && plan && (
             <>
               <div className="bg-muted rounded-lg p-4 space-y-2">
                 <div className="flex items-center justify-between">
@@ -175,7 +180,7 @@ function UpgradeSuccessContent() {
             </>
           )}
 
-          {status === 'error' && (
+          {uiStatus === 'error' && (
             <div className="space-y-3">
               <Button className="w-full" asChild>
                 <Link href="/pricing">Back to Pricing</Link>
