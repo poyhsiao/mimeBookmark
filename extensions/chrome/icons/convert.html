@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Convert SVG to PNG - MimeBookmark Icons</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      padding: 40px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1 { color: #333; }
+    .step { background: white; padding: 20px; margin: 20px 0; border-radius: 8px; }
+    .step h3 { color: #667eea; margin-top: 0; }
+    .output { background: #e8f5e9; padding: 16px; border-radius: 8px; font-family: monospace; }
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 8px 8px 8px 0;
+    }
+    button:hover { opacity: 0.9; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <h1>MimeBookmark Icon Converter</h1>
+
+  <div class="step">
+    <h3>Step 1: Load SVG</h3>
+    <button id="loadSvg">Load icon-source.svg</button>
+  </div>
+
+  <div class="step hidden" id="step2">
+    <h3>Step 2: Convert Icons</h3>
+    <button id="convert16">Generate icon-16.png</button>
+    <button id="convert32">Generate icon-32.png</button>
+    <button id="convert48">Generate icon-48.png</button>
+    <button id="convert128">Generate icon-128.png</button>
+  </div>
+
+  <div class="output" id="output"></div>
+
+  <script>
+    let svgContent = '';
+
+    document.getElementById('loadSvg').addEventListener('click', async () => {
+      try {
+        const response = await fetch('icon-source.svg');
+
+        // Check for HTTP errors
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        svgContent = await response.text();
+        document.getElementById('step2').classList.remove('hidden');
+        const outputEl = document.getElementById('output');
+        outputEl.textContent = 'SVG loaded. Click a button to convert.';
+        outputEl.style.background = '#e8f5e9';
+      } catch (error) {
+        const outputEl = document.getElementById('output');
+        outputEl.textContent = 'Error loading SVG: ' + error.message;
+        outputEl.style.background = '#ffebee';
+        // Make sure output is visible even if step2 is still hidden
+        outputEl.classList.remove('hidden');
+      }
+    });
+
+    async function convertToPng(size) {
+      // Validate svgContent is non-empty
+      if (!svgContent || !svgContent.trim()) {
+        const outputEl = document.getElementById('output');
+        outputEl.textContent = 'Error: SVG content is empty. Please load the SVG first.';
+        outputEl.style.background = '#ffebee';
+        console.error('SVG content is empty or falsy');
+        return;
+      }
+
+      const canvasSize = size;
+      const canvas = document.createElement('canvas');
+      canvas.width = canvasSize;
+      canvas.height = canvasSize;
+      const ctx = canvas.getContext('2d');
+
+      const img = new Image();
+      const svgBlob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+
+      img.onload = function() {
+        ctx.drawImage(img, 0, 0, canvasSize, canvasSize);
+        URL.revokeObjectURL(url);
+
+        const pngUrl = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = pngUrl;
+        link.download = `icon-${size}.png`;
+        link.click();
+
+        document.getElementById('output').textContent = `✓ Generated icon-${size}.png (saved to Downloads)`;
+        document.getElementById('output').style.background = '#e8f5e9';
+      };
+
+      img.onerror = function() {
+        URL.revokeObjectURL(url);
+        document.getElementById('output').textContent = 'Error converting SVG';
+        document.getElementById('output').style.background = '#ffebee';
+      };
+
+      img.src = url;
+    }
+
+    document.getElementById('convert16').addEventListener('click', () => convertToPng(16));
+    document.getElementById('convert32').addEventListener('click', () => convertToPng(32));
+    document.getElementById('convert48').addEventListener('click', () => convertToPng(48));
+    document.getElementById('convert128').addEventListener('click', () => convertToPng(128));
+  </script>
+</body>
+</html>

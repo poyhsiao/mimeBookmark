@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Save to MimeBookmark</title>
   <style>
@@ -17,6 +18,30 @@
       min-height: 400px;
       background: #fff;
       color: #1a1a1a;
+    }
+
+    .skip-link {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+
+    .skip-link:focus {
+      position: relative;
+      width: auto;
+      height: auto;
+      padding: 8px 16px;
+      overflow: visible;
+      clip: auto;
+      background: #667eea;
+      color: white;
+      text-decoration: none;
+      border-radius: 4px;
+      z-index: 10000;
     }
 
     .header {
@@ -69,6 +94,13 @@
       outline: none;
       border-color: #667eea;
       box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    input[type="text"]:focus-visible,
+    textarea:focus-visible,
+    select:focus-visible {
+      outline: 2px solid #667eea;
+      outline-offset: 2px;
     }
 
     textarea {
@@ -163,6 +195,27 @@
     .btn-primary:hover {
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-primary:focus-visible {
+      outline: 2px solid #764ba2;
+      outline-offset: 2px;
+      box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-secondary:hover {
+      background: #eee;
+    }
+
+    .btn-secondary:focus-visible {
+      outline: 2px solid #666;
+      outline-offset: 2px;
     }
 
     .btn-primary:disabled {
@@ -283,6 +336,11 @@
       color: white;
     }
 
+    .quick-tag:focus-visible {
+      outline: 2px solid #667eea;
+      outline-offset: 2px;
+    }
+
     .divider {
       height: 1px;
       background: #e0e0e0;
@@ -322,25 +380,27 @@
   </style>
 </head>
 <body>
+  <a href="#mainContent" class="skip-link">Skip to main content</a>
+
   <div class="header">
     <h1>Save to MimeBookmark</h1>
     <p>Quickly save bookmarks from your browser</p>
   </div>
 
-  <div class="content" id="app">
-    <div class="login-required" id="loginRequired">
-      <div class="icon">
+  <div class="content" id="mainContent" tabindex="-1">
+    <div class="login-required" id="loginRequired" role="alertdialog" aria-labelledby="loginTitle">
+      <div class="icon" aria-hidden="true">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
         </svg>
       </div>
-      <h2>Sign in Required</h2>
+      <h2 id="loginTitle">Sign in Required</h2>
       <p>Please sign in to MimeBookmark to save bookmarks</p>
-      <button class="btn-primary" id="openSettingsBtn">Open Settings</button>
+      <button class="btn-primary" id="openSettingsBtn" aria-label="Open MimeBookmark settings">Open Settings</button>
     </div>
 
     <div id="bookmarkForm" style="display: none;">
-      <div class="page-preview">
+      <div class="page-preview" role="region" aria-label="Current page preview">
         <div class="title" id="pageTitle"></div>
         <div class="url" id="pageUrl"></div>
       </div>
@@ -369,23 +429,23 @@
         <div class="tags-input-container" id="tagsContainer">
           <input type="text" class="tags-input" id="tagsInput" placeholder="Add tags..." aria-label="Tags">
         </div>
-        <div class="quick-tags" id="quickTags"></div>
+        <div class="quick-tags" id="quickTags" role="group" aria-label="Quick tags to add"></div>
       </div>
 
       <div class="divider"></div>
 
-      <div class="actions">
-        <button class="btn-secondary" id="cancelBtn">Cancel</button>
-        <button class="btn-primary" id="saveBtn">Save Bookmark</button>
+      <div class="actions" role="group" aria-label="Form actions">
+        <button class="btn-secondary" id="cancelBtn" type="button" aria-label="Cancel and close popup">Cancel</button>
+        <button class="btn-primary" id="saveBtn" type="button" aria-label="Save the bookmark">Save Bookmark</button>
       </div>
 
-      <div class="status" id="status"></div>
+      <div class="status" id="status" role="status" aria-live="polite" aria-atomic="true"></div>
     </div>
   </div>
 
-  <div class="footer">
-    <span id="userInfo"></span>
-    <a href="#" id="openMimeBookmarkLink">Open MimeBookmark</a>
+  <div class="footer" role="contentinfo">
+    <span id="userInfo" aria-live="polite"></span>
+    <a href="#" id="openMimeBookmarkLink" aria-label="Open MimeBookmark dashboard in new tab">Open MimeBookmark</a>
   </div>
 
   <script src="popup.js"></script>
