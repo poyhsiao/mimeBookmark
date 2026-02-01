@@ -204,7 +204,7 @@ async function mockBookmarkEndpoints(page: Page) {
         body: JSON.stringify({ bookmarks: [], total: 0 }),
       });
     } else {
-      await route.continue();
+      await route.fallback();
     }
   });
   await page.route('**/api/bookmarks/**', async route => {
@@ -216,7 +216,7 @@ async function mockBookmarkEndpoints(page: Page) {
         body: JSON.stringify({ bookmarks: [], total: 0 }),
       });
     } else {
-      await route.continue();
+      await route.fallback();
     }
   });
 }
