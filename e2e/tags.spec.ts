@@ -361,6 +361,8 @@ test.describe('Tags - Regression Tests', () => {
         } else {
           await route.fallback();
         }
+      } else {
+        await route.fallback();
       }
     });
 

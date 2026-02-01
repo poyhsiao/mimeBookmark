@@ -5,7 +5,7 @@ test.describe('Search Functionality', () => {
   test.describe('Search in Bookmarks', () => {
     test.beforeEach(async ({ page }) => {
       // Set up route mocks before navigation to prevent race conditions
-      await page.route('**/api/bookmarks', async (route) => {
+      await page.route('**/api/bookmarks?*', async (route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -53,7 +53,7 @@ test.describe('Search Functionality', () => {
     });
 
     test('should search bookmarks by tag', async ({ page }) => {
-      await page.route('**/api/bookmarks', async (route) => {
+      await page.route('**/api/bookmarks?*', async (route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -112,7 +112,7 @@ test.describe('Search Functionality', () => {
     });
 
     test('should filter bookmarks by collection', async ({ page }) => {
-      await page.route('**/api/bookmarks', async (route) => {
+      await page.route('**/api/bookmarks?*', async (route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -126,7 +126,7 @@ test.describe('Search Functionality', () => {
         });
       });
 
-      await page.route('**/api/collections', async (route) => {
+      await page.route('**/api/collections?*', async (route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -200,7 +200,7 @@ test.describe('Search Functionality', () => {
 
   test.describe('Search in Collections', () => {
     test.beforeEach(async ({ page }) => {
-      await page.route('**/api/collections', async (route) => {
+      await page.route('**/api/collections?*', async (route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -264,7 +264,7 @@ test.describe('Search Functionality', () => {
 
   test.describe('Search in Tags', () => {
     test.beforeEach(async ({ page }) => {
-      await page.route('**/api/tags', async (route) => {
+      await page.route('**/api/tags?*', async (route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -371,7 +371,7 @@ test.describe('Search Functionality', () => {
 
   test.describe('Search Edge Cases', () => {
     test.beforeEach(async ({ page }) => {
-      await page.route('**/api/bookmarks', async (route) => {
+      await page.route('**/api/bookmarks?*', async (route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
