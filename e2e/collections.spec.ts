@@ -171,9 +171,8 @@ test.describe('Collections - Regression Tests', () => {
   });
 
   test('should create a collection with name', async ({ page }) => {
-    await page.route('**/api/collections', async (route) => {
-      const method = route.request().method();
-      if (method === 'POST') {
+    await page.route('**/api/collections**', async (route) => {
+      if (route.request().method() === 'POST') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -199,9 +198,8 @@ test.describe('Collections - Regression Tests', () => {
   });
 
   test('should create a collection with name and description', async ({ page }) => {
-    await page.route('**/api/collections', async (route) => {
-      const method = route.request().method();
-      if (method === 'POST') {
+    await page.route('**/api/collections**', async (route) => {
+      if (route.request().method() === 'POST') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -229,8 +227,7 @@ test.describe('Collections - Regression Tests', () => {
 
   test('should edit collection name', async ({ page }) => {
     await page.route('**/api/collections**', async (route) => {
-      const method = route.request().method();
-      if (method === 'GET') {
+      if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -239,7 +236,7 @@ test.describe('Collections - Regression Tests', () => {
             total: 1,
           }),
         });
-      } else if (method === 'PUT') {
+      } else if (route.request().method() === 'PUT') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -271,8 +268,7 @@ test.describe('Collections - Regression Tests', () => {
 
   test('should edit collection description', async ({ page }) => {
     await page.route('**/api/collections**', async (route) => {
-      const method = route.request().method();
-      if (method === 'GET') {
+      if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -281,7 +277,7 @@ test.describe('Collections - Regression Tests', () => {
             total: 1,
           }),
         });
-      } else if (method === 'PUT') {
+      } else if (route.request().method() === 'PUT') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -316,8 +312,7 @@ test.describe('Collections - Regression Tests', () => {
     const deletedIds = new Set<string>();
 
     await page.route('**/api/collections**', async (route) => {
-      const method = route.request().method();
-      if (method === 'GET') {
+      if (route.request().method() === 'GET') {
         // Return collections excluding deleted ones
         const allCollections = [{ id: 'collection-1', name: 'Tech Resources', description: 'Developer tools' }];
         const availableCollections = allCollections.filter(c => !deletedIds.has(c.id));
@@ -329,7 +324,7 @@ test.describe('Collections - Regression Tests', () => {
             total: availableCollections.length,
           }),
         });
-      } else if (method === 'DELETE') {
+      } else if (route.request().method() === 'DELETE') {
         // Extract collection ID from the URL
         const url = new URL(route.request().url());
         const pathParts = url.pathname.split('/');
@@ -367,9 +362,8 @@ test.describe('Collections - Regression Tests', () => {
   });
 
   test('should handle duplicate collection names', async ({ page }) => {
-    await page.route('**/api/collections', async (route) => {
-      const method = route.request().method();
-      if (method === 'GET') {
+    await page.route('**/api/collections**', async (route) => {
+      if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -378,7 +372,7 @@ test.describe('Collections - Regression Tests', () => {
             total: 1,
           }),
         });
-      } else if (method === 'POST') {
+      } else if (route.request().method() === 'POST') {
         await route.fulfill({
           status: 409,
           contentType: 'application/json',

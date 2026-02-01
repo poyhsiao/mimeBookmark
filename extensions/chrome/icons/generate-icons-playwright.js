@@ -21,9 +21,12 @@ const { pathToFileURL } = require('url');
     { size: 128, path: icon128Path }
   ];
 
+  let browser = null;
+  let page = null;
+
   try {
-    const browser = await chromium.launch();
-    const page = await browser.newPage();
+    browser = await chromium.launch();
+    page = await browser.newPage();
 
     for (const { size, path: outputPath } of sizes) {
       console.log(`Generating icon-${size}.png (${size}x${size})...`);
@@ -54,13 +57,13 @@ const { pathToFileURL } = require('url');
       console.log(`✓ Created icon-${size}.png`);
     }
 
-    await page.close();
-    await browser.close();
-
-    fs.unlinkSync(convertHtml);
     console.log('\nAll icons generated successfully!');
   } catch (error) {
     console.error('Error:', error.message);
-    process.exit(1);
+    throw error;
+  } finally {
+    if (page) await page.close();
+    if (browser) await browser.close();
+    if (fs.existsSync(convertHtml)) fs.unlinkSync(convertHtml);
   }
 })();

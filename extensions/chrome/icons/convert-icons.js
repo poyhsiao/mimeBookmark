@@ -23,8 +23,6 @@ async function svgToPng(svgContent, outputPath, size) {
 
 (async () => {
   const svgPath = path.join(__dirname, 'icon-source.svg');
-  const icon48Path = path.join(__dirname, 'icon-48.png');
-  const icon128Path = path.join(__dirname, 'icon-128.png');
 
   if (!fs.existsSync(svgPath)) {
     console.error('icon-source.svg not found');
@@ -33,14 +31,19 @@ async function svgToPng(svgContent, outputPath, size) {
 
   const svgContent = fs.readFileSync(svgPath, 'utf8');
 
-  try {
-    console.log('Converting SVG to 48x48 PNG...');
-    await svgToPng(svgContent, icon48Path, 48);
-    console.log('✓ Created icon-48.png');
+  const sizes = [
+    { size: 16, path: path.join(__dirname, 'icon-16.png') },
+    { size: 32, path: path.join(__dirname, 'icon-32.png') },
+    { size: 48, path: path.join(__dirname, 'icon-48.png') },
+    { size: 128, path: path.join(__dirname, 'icon-128.png') },
+  ];
 
-    console.log('Converting SVG to 128x128 PNG...');
-    await svgToPng(svgContent, icon128Path, 128);
-    console.log('✓ Created icon-128.png');
+  try {
+    for (const { size, path: outputPath } of sizes) {
+      console.log(`Converting SVG to ${size}x${size} PNG...`);
+      await svgToPng(svgContent, outputPath, size);
+      console.log(`✓ Created icon-${size}.png`);
+    }
 
     console.log('All icons generated successfully!');
   } catch (error) {

@@ -1,6 +1,7 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
+const { pathToFileURL } = require('url');
 
 (async () => {
   const svgPath = path.join(__dirname, 'icons/icon-source.svg');
@@ -32,7 +33,7 @@ const path = require('path');
 
       const html = `<!DOCTYPE html><html><head><style>html,body{margin:0;padding:0;width:${size}px;height:${size}px;}svg{width:100%;height:100%;}</style></head><body>${svgContent}</body></html>`;
       fs.writeFileSync(convertHtml, html);
-      await page.goto(`file://${convertHtml}`);
+      await page.goto(pathToFileURL(convertHtml).href);
       await page.setViewportSize({ width: size, height: size });
 
       await page.screenshot({ path: outputPath, type: 'png' });

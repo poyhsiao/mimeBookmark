@@ -474,7 +474,7 @@ This guide provides steps to test the Chrome extension popup functionality with 
 - [ ] Scenario 7c: Network error handling
 - [ ] Scenario 7d: Invalid or expired token error handling
 - [ ] Scenario 7e: API server error handling
-- [ ] Scenario 7f: Rate limiting error handling
+- [ ] Scenario 7f: Rate-limiting error handling
 - [ ] Scenario 8: Cancel button functionality
 - [ ] Scenario 9: Open MimeBookmark link
 - [ ] Scenario 10: Keyboard navigation

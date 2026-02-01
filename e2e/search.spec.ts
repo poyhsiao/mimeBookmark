@@ -130,9 +130,23 @@ test.describe('Search Functionality', () => {
         });
       });
 
+      await page.route('**/api/collections', async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            collections: [
+              { id: 'tech', name: 'tech' },
+              { id: 'design', name: 'design' },
+            ],
+            pagination: { page: 1, limit: 20, total: 2, totalPages: 1 },
+          }),
+        });
+      });
+
       await page.route('**/api/search', async (route) => {
         const url = new URL(route.request().url());
-        const collection = url.searchParams.get('collection');
+        const collection = url.searchParams.get('collection_id');
         if (collection === 'tech') {
           await route.fulfill({
             status: 200,
@@ -151,6 +165,7 @@ test.describe('Search Functionality', () => {
         }
       });
 
+      await page.reload();
       const filterSelect = page.locator('select').first();
       await filterSelect.selectOption('tech');
 
