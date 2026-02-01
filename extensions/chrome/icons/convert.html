@@ -40,6 +40,8 @@
 
   <div class="step hidden" id="step2">
     <h3>Step 2: Convert Icons</h3>
+    <button id="convert16">Generate icon-16.png</button>
+    <button id="convert32">Generate icon-32.png</button>
     <button id="convert48">Generate icon-48.png</button>
     <button id="convert128">Generate icon-128.png</button>
   </div>
@@ -113,6 +115,8 @@
       img.src = url;
     }
 
+    document.getElementById('convert16').addEventListener('click', () => convertToPng(16));
+    document.getElementById('convert32').addEventListener('click', () => convertToPng(32));
     document.getElementById('convert48').addEventListener('click', () => convertToPng(48));
     document.getElementById('convert128').addEventListener('click', () => convertToPng(128));
   </script>

@@ -385,8 +385,8 @@ This guide provides steps to test the Chrome extension popup functionality with 
 6. Measure time until all UI elements are loaded
 
 **Expected Results:**
-- Popup appears within 100-200ms
-- All fields are loaded within 500ms of opening
+- Popup appears within 100-200 ms
+- All fields are loaded within 500 ms of opening
 - API requests:
   - `/api/user/me`: <1s
   - `/api/collections`: <500ms

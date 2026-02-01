@@ -375,6 +375,12 @@ test.describe('Settings - Regression Tests', () => {
           contentType: 'application/json',
           body: JSON.stringify({ language: 'zh' }),
         });
+      } else if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ language: 'zh' }),
+        });
       }
     });
 
@@ -396,6 +402,17 @@ test.describe('Settings - Regression Tests', () => {
   test('should toggle email notifications', async ({ page }) => {
     await page.route('**/api/me/settings', async (route) => {
       if (route.request().method() === 'PUT') {
+        const body = JSON.parse(route.request().postData() ?? '{}');
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            preferences: {
+              email_notifications: body.preferences?.email_notifications ?? true,
+            },
+          }),
+        });
+      } else if (route.request().method() === 'GET') {
         const body = JSON.parse(route.request().postData() ?? '{}');
         await route.fulfill({
           status: 200,
@@ -472,6 +489,20 @@ test.describe('Settings - Regression Tests', () => {
 
     await page.route('**/api/me/settings', async (route) => {
       if (route.request().method() === 'PUT') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            displayName: 'Synced User',
+            timezone: 'Europe/London',
+            language: 'fr',
+            preferences: {
+              theme: 'dark',
+              email_notifications: false,
+            },
+          }),
+        });
+      } else if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',

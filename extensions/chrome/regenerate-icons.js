@@ -43,7 +43,7 @@ const { pathToFileURL } = require('url');
     console.log('\nAll icons generated successfully!');
   } catch (error) {
     console.error('Error:', error.message);
-    process.exit(1);
+    process.exitCode = 1;
   } finally {
     // Cleanup resources
     if (page) {
