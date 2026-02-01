@@ -1,5 +1,4 @@
-import { test, expect } from '@playwright/test';
-import { authenticateUser } from './fixtures/auth';
+import { test, expect } from './setup';
 
 test.describe('Tags Page', () => {
   test.beforeEach(async ({ page }) => {
@@ -67,7 +66,6 @@ test.describe('Tags Page', () => {
 
 test.describe.serial('Tags - Functionality', () => {
   test.beforeEach(async ({ page }) => {
-    await authenticateUser(page);
   });
 
   test('should display API-created tag in UI', async ({ page }) => {
@@ -177,7 +175,6 @@ test.describe.serial('Tags - Functionality', () => {
 
 test.describe('Tags - Regression Tests', () => {
   test.beforeEach(async ({ page }) => {
-    await authenticateUser(page);
   });
 
   test('should create a tag via bookmarks page', async ({ page }) => {

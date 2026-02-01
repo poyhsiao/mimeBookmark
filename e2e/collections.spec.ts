@@ -1,5 +1,4 @@
-import { test, expect } from '@playwright/test';
-import { authenticateUser } from './fixtures/auth';
+import { test, expect } from './setup';
 
 test.describe('Collections Page', () => {
   test.beforeEach(async ({ page }) => {
@@ -37,7 +36,6 @@ test.describe('Collections Page', () => {
 
 test.describe.serial('Collections - With Data', () => {
   test.beforeEach(async ({ page }) => {
-    await authenticateUser(page);
     await page.goto('/dashboard/collections');
   });
 
@@ -125,8 +123,6 @@ test.describe.serial('Collections - With Data', () => {
 
 test.describe.serial('Collections - Empty State', () => {
   test.beforeEach(async ({ page }) => {
-    await authenticateUser(page);
-
     // Mock the collections API to return empty array instead of destructive deletion
     await page.route('**/api/collections**', async route => {
       if (route.request().method() === 'GET') {
@@ -157,7 +153,6 @@ test.describe.serial('Collections - Empty State', () => {
 
 test.describe('Collections - Regression Tests', () => {
   test.beforeEach(async ({ page }) => {
-    await authenticateUser(page);
     // Set up default route mocks before navigation to prevent race conditions
     await page.route('**/api/collections**', async (route) => {
       if (route.request().method() !== 'GET') {
