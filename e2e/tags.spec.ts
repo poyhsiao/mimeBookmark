@@ -186,12 +186,14 @@ test.describe('Tags - Regression Tests', () => {
           contentType: 'application/json',
           body: JSON.stringify({ id: 'tag-1', name: 'development', color: '#FF0000' }),
         });
-      } else {
+      } else if (method === 'GET') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({ tags: [{ id: 'tag-1', name: 'development', color: '#FF0000' }], total: 1 }),
         });
+      } else {
+        await route.fallback();
       }
     });
 
@@ -238,6 +240,8 @@ test.describe('Tags - Regression Tests', () => {
           contentType: 'application/json',
           body: JSON.stringify({ id: 'tag-1', name: currentTagName, color: currentTagColor }),
         });
+      } else {
+        await route.fallback();
       }
     });
 
@@ -278,6 +282,8 @@ test.describe('Tags - Regression Tests', () => {
           contentType: 'application/json',
           body: JSON.stringify({ success: true }),
         });
+      } else {
+        await route.fallback();
       }
     });
 
@@ -341,6 +347,8 @@ test.describe('Tags - Regression Tests', () => {
             contentType: 'application/json',
             body: JSON.stringify({ id: 'tag-2', name: 'js', color: '#00FF00', mergedWith: ['tag-1'] }),
           });
+        } else {
+          await route.fallback();
         }
       }
     });
@@ -401,8 +409,14 @@ test.describe('Tags - Regression Tests', () => {
           contentType: 'application/json',
           body: JSON.stringify({ error: 'Tag name is too long' }),
         });
+      } else if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ tags: [], total: 0 }),
+        });
       } else {
-        await route.continue();
+        await route.fallback();
       }
     });
 

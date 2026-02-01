@@ -175,12 +175,14 @@ test.describe('Collections - Regression Tests', () => {
           contentType: 'application/json',
           body: JSON.stringify({ id: 'collection-1', name: 'Tech Resources', description: '' }),
         });
-      } else {
+      } else if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({ collections: [], total: 0 }),
         });
+      } else {
+        await route.fallback();
       }
     });
 
@@ -202,12 +204,14 @@ test.describe('Collections - Regression Tests', () => {
           contentType: 'application/json',
           body: JSON.stringify({ id: 'collection-1', name: 'Tech Resources', description: 'Developer tools and tutorials' }),
         });
-      } else {
+      } else if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({ collections: [], total: 0 }),
         });
+      } else {
+        await route.fallback();
       }
     });
 
@@ -240,11 +244,7 @@ test.describe('Collections - Regression Tests', () => {
           body: JSON.stringify({ id: 'collection-1', name: 'Updated Collection', description: 'Developer tools' }),
         });
       } else {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ collections: [], total: 0 }),
-        });
+        await route.fallback();
       }
     });
 
@@ -281,11 +281,7 @@ test.describe('Collections - Regression Tests', () => {
           body: JSON.stringify({ id: 'collection-1', name: 'Tech Resources', description: 'Updated description' }),
         });
       } else {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ collections: [], total: 0 }),
-        });
+        await route.fallback();
       }
     });
 
@@ -321,8 +317,8 @@ test.describe('Collections - Regression Tests', () => {
             total: availableCollections.length,
           }),
         });
-      } else if (route.request().method() === 'DELETE') {
-        // Extract collection ID from the URL
+       } else if (route.request().method() === 'DELETE') {
+        // Extract collection ID from URL
         const url = new URL(route.request().url());
         const pathParts = url.pathname.split('/');
         const collectionId = pathParts[pathParts.length - 1];
@@ -332,6 +328,10 @@ test.describe('Collections - Regression Tests', () => {
           contentType: 'application/json',
           body: JSON.stringify({ success: true }),
         });
+      } else {
+        await route.fallback();
+      }
+    });
       } else {
         await route.fulfill({
           status: 200,
@@ -394,6 +394,24 @@ test.describe('Collections - Regression Tests', () => {
   });
 
   test('should validate collection name length', async ({ page }) => {
+    await page.route('**/api/collections**', async (route) => {
+      if (route.request().method() === 'POST') {
+        await route.fulfill({
+          status: 400,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'Collection name is too long' }),
+        });
+      } else if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ collections: [], total: 0 }),
+        });
+      } else {
+        await route.fallback();
+      }
+    });
+
     await page.click('button:has-text("Add Collection")');
     const modal = page.locator('[role="dialog"]').first();
     await expect(modal).toBeVisible();
