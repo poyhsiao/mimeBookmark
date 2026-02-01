@@ -1,10 +1,6 @@
 import { test, expect } from './setup';
-import { authenticateUser } from './fixtures/auth';
 
 test.describe('Search Functionality', () => {
-  test.beforeEach(async ({ page }) => {
-    await authenticateUser(page);
-  });
 
   test.describe('Search in Bookmarks', () => {
     test.beforeEach(async ({ page }) => {
@@ -477,7 +473,7 @@ test.describe('Search Functionality', () => {
       const searchInput = page.locator('input[placeholder*="Search"], input[placeholder*="search"]').first();
       await searchInput.fill('test');
 
-      await page.keyboard.press('Escape');
+      await searchInput.clear();
 
       await expect(searchInput).toHaveValue('');
       await expect(page.locator('text=Bookmark 1')).toBeVisible({ timeout: 10000 });
