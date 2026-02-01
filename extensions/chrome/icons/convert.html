@@ -62,7 +62,9 @@
 
         svgContent = await response.text();
         document.getElementById('step2').classList.remove('hidden');
-        document.getElementById('output').textContent = 'SVG loaded. Click a button to convert.';
+        const outputEl = document.getElementById('output');
+        outputEl.textContent = 'SVG loaded. Click a button to convert.';
+        outputEl.style.background = '#e8f5e9';
       } catch (error) {
         const outputEl = document.getElementById('output');
         outputEl.textContent = 'Error loading SVG: ' + error.message;

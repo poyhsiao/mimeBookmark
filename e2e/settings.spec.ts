@@ -237,24 +237,28 @@ test.describe('Settings - Regression Tests', () => {
   });
 
   test('should update display name', async ({ page }) => {
+    let currentDisplayName = 'Test User';
     await page.route('**/api/me/settings', async (route) => {
       if (route.request().method() === 'PUT') {
+        const body = JSON.parse(route.request().postData() ?? '{}');
+        currentDisplayName = body.displayName ?? currentDisplayName;
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ displayName: 'Updated Name' }),
+          body: JSON.stringify({ displayName: currentDisplayName }),
         });
       } else {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ displayName: 'Test User' }),
+          body: JSON.stringify({ displayName: currentDisplayName }),
         });
       }
     });
 
     const nameInput = page.locator('input[id*="displayName"]').first();
     const originalValue = await nameInput.inputValue();
+    currentDisplayName = originalValue;
 
     try {
       await nameInput.clear();
@@ -278,6 +282,8 @@ test.describe('Settings - Regression Tests', () => {
           contentType: 'application/json',
           body: JSON.stringify({ email: 'new@example.com' }),
         });
+      } else {
+        await route.fallback();
       }
     });
 
@@ -400,26 +406,27 @@ test.describe('Settings - Regression Tests', () => {
   });
 
   test('should toggle email notifications', async ({ page }) => {
+    let currentEmailNotifications = true;
     await page.route('**/api/me/settings', async (route) => {
       if (route.request().method() === 'PUT') {
         const body = JSON.parse(route.request().postData() ?? '{}');
+        currentEmailNotifications = body.preferences?.email_notifications ?? currentEmailNotifications;
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
             preferences: {
-              email_notifications: body.preferences?.email_notifications ?? true,
+              email_notifications: currentEmailNotifications,
             },
           }),
         });
       } else if (route.request().method() === 'GET') {
-        const body = JSON.parse(route.request().postData() ?? '{}');
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
             preferences: {
-              email_notifications: body.preferences?.email_notifications ?? true,
+              email_notifications: currentEmailNotifications,
             },
           }),
         });
@@ -428,6 +435,7 @@ test.describe('Settings - Regression Tests', () => {
 
     const notificationsToggle = page.locator('input[type="checkbox"][id*="email"], [role="switch"][id*="email"]').first();
     const originalChecked = await notificationsToggle.isChecked();
+    currentEmailNotifications = originalChecked;
 
     try {
       await notificationsToggle.click();
@@ -451,6 +459,8 @@ test.describe('Settings - Regression Tests', () => {
           contentType: 'application/json',
           body: JSON.stringify({ token: 'new-api-token-xyz789' }),
         });
+      } else {
+        await route.fallback();
       }
     });
 
