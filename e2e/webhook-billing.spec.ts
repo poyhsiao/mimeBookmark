@@ -142,7 +142,8 @@ test.describe('Billing Page - Webhook Tests', () => {
       await page.reload();
 
       // Should show error state (billing page has error handling)
-      await expect(page.locator('text=Failed to load')).or(page.locator('text=Error')).toBeVisible({ timeout: 10000 });
+      const errorMessage = page.locator('text=Failed to load').or(page.locator('text=Error'));
+      await expect(errorMessage).toBeVisible({ timeout: 10000 });
     });
   });
 
