@@ -375,6 +375,8 @@ test.describe('Collections - Regression Tests', () => {
           contentType: 'application/json',
           body: JSON.stringify({ error: 'Collection name already exists' }),
         });
+      } else {
+        await route.fallback();
       }
     });
 

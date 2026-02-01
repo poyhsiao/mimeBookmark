@@ -178,7 +178,7 @@ test.describe('Tags - Regression Tests', () => {
   });
 
   test('should create a tag via bookmarks page', async ({ page }) => {
-    await page.route('**/api/tags*', async (route) => {
+    await page.route('**/api/tags**', async (route) => {
       const method = route.request().method();
       if (method === 'POST') {
         await route.fulfill({
@@ -216,6 +216,9 @@ test.describe('Tags - Regression Tests', () => {
   });
 
   test('should edit a tag', async ({ page }) => {
+    let currentTagName = 'development';
+    let currentTagColor = '#FF0000';
+
     await page.route('**/api/tags**', async (route) => {
       const method = route.request().method();
       if (method === 'GET') {
@@ -223,15 +226,17 @@ test.describe('Tags - Regression Tests', () => {
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
-            tags: [{ id: 'tag-1', name: 'development', color: '#FF0000' }],
+            tags: [{ id: 'tag-1', name: currentTagName, color: currentTagColor }],
             total: 1,
           }),
         });
       } else if (method === 'PUT') {
+        currentTagName = 'engineering';
+        currentTagColor = '#00FF00';
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ id: 'tag-1', name: 'engineering', color: '#00FF00' }),
+          body: JSON.stringify({ id: 'tag-1', name: currentTagName, color: currentTagColor }),
         });
       }
     });
@@ -252,18 +257,22 @@ test.describe('Tags - Regression Tests', () => {
   });
 
   test('should delete a tag', async ({ page }) => {
+    let tagDeleted = false;
+
     await page.route('**/api/tags**', async (route) => {
       const method = route.request().method();
       if (method === 'GET') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({
-            tags: [{ id: 'tag-1', name: 'development', color: '#FF0000' }],
-            total: 1,
-          }),
+          body: JSON.stringify(
+            tagDeleted
+              ? { tags: [], total: 0 }
+              : { tags: [{ id: 'tag-1', name: 'development', color: '#FF0000' }], total: 1 }
+          ),
         });
       } else if (method === 'DELETE') {
+        tagDeleted = true;
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -294,21 +303,28 @@ test.describe('Tags - Regression Tests', () => {
   });
 
   test('should merge two tags', async ({ page }) => {
+    let tagsMerged = false;
+
     await page.route('**/api/tags**', async (route) => {
       const method = route.request().method();
       if (method === 'GET') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({
-            tags: [
-              { id: 'tag-1', name: 'javascript', color: '#FF0000' },
-              { id: 'tag-2', name: 'js', color: '#00FF00' },
-            ],
-            total: 2,
-          }),
+          body: JSON.stringify(
+            tagsMerged
+              ? { tags: [{ id: 'tag-2', name: 'js', color: '#00FF00' }], total: 1 }
+              : {
+                  tags: [
+                    { id: 'tag-1', name: 'javascript', color: '#FF0000' },
+                    { id: 'tag-2', name: 'js', color: '#00FF00' },
+                  ],
+                  total: 2,
+                }
+          ),
         });
       } else if (method === 'PUT') {
+        tagsMerged = true;
         const url = new URL(route.request().url());
         const pathParts = url.pathname.split('/');
         const tagId = pathParts[pathParts.length - 1];
@@ -347,7 +363,7 @@ test.describe('Tags - Regression Tests', () => {
   });
 
   test('should handle duplicate tag names', async ({ page }) => {
-    await page.route('**/api/tags*', async (route) => {
+    await page.route('**/api/tags**', async (route) => {
       const method = route.request().method();
       if (method === 'GET') {
         await route.fulfill({
@@ -378,6 +394,18 @@ test.describe('Tags - Regression Tests', () => {
   });
 
   test('should validate tag name length', async ({ page }) => {
+    await page.route('**/api/tags**', async (route) => {
+      if (route.request().method() === 'POST') {
+        await route.fulfill({
+          status: 400,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'Tag name is too long' }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
     await page.goto('/dashboard/tags');
 
     const nameInput = page.locator('input[placeholder*="Enter tag name"]').first();
