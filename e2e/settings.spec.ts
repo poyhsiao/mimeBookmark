@@ -347,22 +347,28 @@ test.describe('Settings - Regression Tests', () => {
 
       await page.waitForTimeout(500);
 
-      const currentTheme = await page.evaluate(() => {
-        const html = document.querySelector('html');
-        return html?.getAttribute('data-theme') || 'system';
+      const { hasDarkClass: hasDarkClass1, currentTheme } = await page.evaluate(() => {
+        const html = document.documentElement;
+        if (!html) return { hasDarkClass: false, currentTheme: 'system' };
+        if (html.classList.contains('dark')) return { hasDarkClass: true, currentTheme: 'dark' };
+        return { hasDarkClass: false, currentTheme: html.getAttribute('data-theme') || 'system' };
       });
 
+      expect(hasDarkClass1).toBe(true);
       expect(currentTheme).toBe('dark');
 
       const lightButton = page.locator('button', { hasText: 'Light' }).first();
       await lightButton.click();
       await page.waitForTimeout(500);
 
-      const finalTheme = await page.evaluate(() => {
-        const html = document.querySelector('html');
-        return html?.getAttribute('data-theme') || 'system';
+      const { hasDarkClass: hasDarkClass2, finalTheme } = await page.evaluate(() => {
+        const html = document.documentElement;
+        if (!html) return { hasDarkClass: false, finalTheme: 'system' };
+        if (html.classList.contains('dark')) return { hasDarkClass: true, finalTheme: 'dark' };
+        return { hasDarkClass: false, finalTheme: html.getAttribute('data-theme') || 'system' };
       });
 
+      expect(hasDarkClass2).toBe(false);
       expect(finalTheme).toBe('light');
     } finally {
       if (originalTheme) {

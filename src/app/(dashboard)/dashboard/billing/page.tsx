@@ -241,7 +241,9 @@ export default function BillingPage() {
             </div>
             <Button
               variant={billingData.currentPlan === 'free' ? 'default' : 'outline'}
+              disabled={isProcessing}
               onClick={() => {
+                if (isProcessing) return;
                 if (billingData.currentPlan === 'free') {
                   handleUpgrade('pro');
                 } else {
