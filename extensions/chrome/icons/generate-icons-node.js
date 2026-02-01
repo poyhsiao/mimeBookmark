@@ -3,8 +3,7 @@ const path = require('path');
 
 (async () => {
   const svgPath = path.join(__dirname, 'icon-source.svg');
-  const icon48Path = path.join(__dirname, 'icon-48.png');
-  const icon128Path = path.join(__dirname, 'icon-128.png');
+  const sizes = [16, 32, 48, 128];
 
   if (!fs.existsSync(svgPath)) {
     console.error('icon-source.svg not found');
@@ -23,25 +22,17 @@ const path = require('path');
   }
 
   try {
-    console.log('Converting SVG to 48x48 PNG...');
-    const canvas48 = createCanvas(48, 48);
-    const ctx48 = canvas48.getContext('2d');
-    // Pass the file path directly to loadImage instead of SVG content
-    const img48 = await loadImage(svgPath);
-    ctx48.drawImage(img48, 0, 0, 48, 48);
-    const buffer48 = canvas48.toBuffer('image/png');
-    fs.writeFileSync(icon48Path, buffer48);
-    console.log('✓ Created icon-48.png');
-
-    console.log('Converting SVG to 128x128 PNG...');
-    const canvas128 = createCanvas(128, 128);
-    const ctx128 = canvas128.getContext('2d');
-    // Pass the file path directly to loadImage instead of SVG content
-    const img128 = await loadImage(svgPath);
-    ctx128.drawImage(img128, 0, 0, 128, 128);
-    const buffer128 = canvas128.toBuffer('image/png');
-    fs.writeFileSync(icon128Path, buffer128);
-    console.log('✓ Created icon-128.png');
+    const img = await loadImage(svgPath);
+    
+    for (const size of sizes) {
+      console.log(`Converting SVG to ${size}x${size} PNG...`);
+      const canvas = createCanvas(size, size);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, size, size);
+      const buffer = canvas.toBuffer('image/png');
+      fs.writeFileSync(path.join(__dirname, `icon-${size}.png`), buffer);
+      console.log(`✓ Created icon-${size}.png`);
+    }
 
     console.log('All icons generated successfully!');
   } catch (error) {

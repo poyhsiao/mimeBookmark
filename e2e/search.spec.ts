@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './setup';
 import { authenticateUser } from './fixtures/auth';
 
 test.describe('Search Functionality', () => {

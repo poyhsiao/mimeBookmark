@@ -160,7 +160,9 @@ test.describe('Collections - Regression Tests', () => {
     await authenticateUser(page);
     // Set up default route mocks before navigation to prevent race conditions
     await page.route('**/api/collections**', async (route) => {
-      const method = route.request().method();
+      if (route.request().method() !== 'GET') {
+        return route.fallback();
+      }
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

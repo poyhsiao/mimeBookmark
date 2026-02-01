@@ -6,8 +6,6 @@ const { pathToFileURL } = require('url');
 (async () => {
   const svgPath = path.join(__dirname, 'icon-source.svg');
   const convertHtml = path.join(__dirname, 'convert-temp.html');
-  const icon48Path = path.join(__dirname, 'icon-48.png');
-  const icon128Path = path.join(__dirname, 'icon-128.png');
 
   if (!fs.existsSync(svgPath)) {
     console.error('icon-source.svg not found');
@@ -17,8 +15,10 @@ const { pathToFileURL } = require('url');
   const svgContent = fs.readFileSync(svgPath, 'utf8');
 
   const sizes = [
-    { size: 48, path: icon48Path },
-    { size: 128, path: icon128Path }
+    { size: 16, path: path.join(__dirname, 'icon-16.png') },
+    { size: 32, path: path.join(__dirname, 'icon-32.png') },
+    { size: 48, path: path.join(__dirname, 'icon-48.png') },
+    { size: 128, path: path.join(__dirname, 'icon-128.png') }
   ];
 
   let browser = null;

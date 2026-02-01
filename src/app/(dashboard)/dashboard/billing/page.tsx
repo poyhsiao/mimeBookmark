@@ -33,7 +33,8 @@ export default function BillingPage() {
   const [billingData, setBillingData] = useState<BillingData | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const currentPlan = SUBSCRIPTION_PLANS[billingData?.currentPlan as keyof typeof SUBSCRIPTION_PLANS || 'free'];
+  const planKey = (billingData?.currentPlan ?? 'free') as keyof typeof SUBSCRIPTION_PLANS;
+  const currentPlan = SUBSCRIPTION_PLANS[planKey] ?? SUBSCRIPTION_PLANS.free;
 
   const fetchBillingData = useCallback(async () => {
     setIsLoading(true);
@@ -107,7 +108,8 @@ export default function BillingPage() {
       const { portalUrl } = await response.json();
       
       if (portalUrl) {
-        window.open(portalUrl, '_blank');
+        const newWindow = window.open(portalUrl, '_blank', 'noopener,noreferrer');
+        if (newWindow) newWindow.opener = null;
       } else {
         throw new Error('No portal URL returned');
       }
