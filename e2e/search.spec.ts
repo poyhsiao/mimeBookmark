@@ -28,7 +28,7 @@ test.describe('Search Functionality', () => {
     test('should search bookmarks by title', async ({ page }) => {
       // Bookmarks route is already mocked in beforeEach
 
-      await page.route('**/api/search', async (route) => {
+      await page.route('**/api/search?*', async (route) => {
         const url = new URL(route.request().url());
         const query = url.searchParams.get('q');
         if (query === 'Developer') {
@@ -71,7 +71,7 @@ test.describe('Search Functionality', () => {
         });
       });
 
-      await page.route('**/api/search', async (route) => {
+      await page.route('**/api/search?*', async (route) => {
         const url = new URL(route.request().url());
         const query = url.searchParams.get('q');
         if (query === 'react') {
@@ -100,7 +100,7 @@ test.describe('Search Functionality', () => {
     });
 
     test('should show no results for empty search', async ({ page }) => {
-      await page.route('**/api/search', async (route) => {
+      await page.route('**/api/search?*', async (route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -144,7 +144,7 @@ test.describe('Search Functionality', () => {
         });
       });
 
-      await page.route('**/api/search', async (route) => {
+      await page.route('**/api/search?*', async (route) => {
         const url = new URL(route.request().url());
         const collection = url.searchParams.get('collection_id');
         if (collection === 'tech') {
@@ -174,7 +174,7 @@ test.describe('Search Functionality', () => {
     });
 
     test('should be case-insensitive', async ({ page }) => {
-      await page.route('**/api/search', async (route) => {
+      await page.route('**/api/search?*', async (route) => {
         const url = new URL(route.request().url());
         const query = url.searchParams.get('q');
         if (query && query.toLowerCase() === 'developer') {
@@ -221,7 +221,7 @@ test.describe('Search Functionality', () => {
     });
 
     test('should search collections by name', async ({ page }) => {
-      await page.route('**/api/search', async (route) => {
+      await page.route('**/api/search?*', async (route) => {
         const url = new URL(route.request().url());
         const query = url.searchParams.get('q');
         if (query === 'Tech') {
@@ -250,7 +250,7 @@ test.describe('Search Functionality', () => {
     });
 
     test('should show empty state for no results', async ({ page }) => {
-      await page.route('**/api/search', async (route) => {
+      await page.route('**/api/search?*', async (route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -285,7 +285,7 @@ test.describe('Search Functionality', () => {
     });
 
     test('should search tags by name', async ({ page }) => {
-      await page.route('**/api/search', async (route) => {
+      await page.route('**/api/search?*', async (route) => {
         const url = new URL(route.request().url());
         const query = url.searchParams.get('q');
         if (query === 'java') {
@@ -314,7 +314,7 @@ test.describe('Search Functionality', () => {
     });
 
     test('should show empty state for no results', async ({ page }) => {
-      await page.route('**/api/search', async (route) => {
+      await page.route('**/api/search?*', async (route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -341,7 +341,7 @@ test.describe('Search Functionality', () => {
     });
 
     test('should search across all entities', async ({ page }) => {
-      await page.route('**/api/search', async (route) => {
+      await page.route('**/api/search?*', async (route) => {
         const url = new URL(route.request().url());
         const query = url.searchParams.get('q');
         if (query === 'test-search-query') {
@@ -391,7 +391,7 @@ test.describe('Search Functionality', () => {
     });
 
     test('should handle special characters', async ({ page }) => {
-      await page.route('**/api/search', async (route) => {
+      await page.route('**/api/search?*', async (route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -406,7 +406,7 @@ test.describe('Search Functionality', () => {
     });
 
     test('should handle emoji in search', async ({ page }) => {
-      await page.route('**/api/search', async (route) => {
+      await page.route('**/api/search?*', async (route) => {
         const url = new URL(route.request().url());
         const query = url.searchParams.get('q');
         if (query && query.includes('🚀')) {
@@ -434,7 +434,7 @@ test.describe('Search Functionality', () => {
     });
 
     test('should handle URL-encoded characters', async ({ page }) => {
-      await page.route('**/api/search', async (route) => {
+      await page.route('**/api/search?*', async (route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -451,7 +451,7 @@ test.describe('Search Functionality', () => {
     test('should handle very long search queries', async ({ page }) => {
       const longQuery = 'a'.repeat(1000);
 
-      await page.route('**/api/search', async (route) => {
+      await page.route('**/api/search?*', async (route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -466,7 +466,7 @@ test.describe('Search Functionality', () => {
     });
 
     test('should clear search results', async ({ page }) => {
-      await page.route('**/api/search', async (route) => {
+      await page.route('**/api/search?*', async (route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
