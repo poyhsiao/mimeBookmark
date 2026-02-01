@@ -516,8 +516,9 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div>
-              <label className="text-sm font-medium mb-3 block">Theme</label>
+              <label htmlFor="theme-select" className="text-sm font-medium mb-3 block">Theme</label>
               <ToggleGroup
+                id="theme-select"
                 type="single"
                 value={theme}
                 onValueChange={(value) => value && setTheme(value as 'light' | 'dark' | 'system')}
@@ -814,7 +815,7 @@ export default function SettingsPage() {
                     <div className="mt-2">
                       <p className="font-medium text-destructive">Errors:</p>
                       {importResult.errors.slice(0, 5).map((error, idx) => (
-                        <p key={`error-${idx}`} className="text-xs text-destructive">
+                        <p key={`${idx}-${error}`} className="text-xs text-destructive">
                           • {error}
                         </p>
                       ))}

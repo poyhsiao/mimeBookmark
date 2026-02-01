@@ -229,3 +229,312 @@ test.describe('Settings - Responsive', () => {
     await expect(profileSection.first()).toBeVisible();
   });
 });
+
+test.describe('Settings - Regression Tests', () => {
+  test.beforeEach(async ({ page }) => {
+    await authenticateUser(page);
+    await page.goto('/dashboard/settings');
+  });
+
+  test('should update display name', async ({ page }) => {
+    await page.route('**/api/me/settings', async (route) => {
+      if (route.request().method() === 'PUT') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ displayName: 'Updated Name' }),
+        });
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ displayName: 'Test User' }),
+        });
+      }
+    });
+
+    const nameInput = page.locator('input[id*="displayName"]').first();
+    const originalValue = await nameInput.inputValue();
+
+    try {
+      await nameInput.clear();
+      await nameInput.fill('Updated Name');
+      await page.click('button:has-text("Save Profile")');
+
+      await expect(nameInput).toHaveValue('Updated Name', { timeout: 10000 });
+    } finally {
+      await nameInput.clear();
+      await nameInput.fill(originalValue);
+      // Persist the restored value to the server
+      await page.click('button:has-text("Save Profile")');
+    }
+  });
+
+  test('should update email', async ({ page }) => {
+    await page.route('**/api/user/email', async (route) => {
+      if (route.request().method() === 'PUT') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ email: 'new@example.com' }),
+        });
+      }
+    });
+
+    const emailSection = page.locator('text=Profile').locator('..').locator('text=Email').or(page.locator('label:has-text("Email")')).first();
+    await expect(emailSection).toBeVisible();
+    await emailSection.click();
+
+    const modal = page.locator('[role="dialog"]').first();
+    await expect(modal).toBeVisible();
+
+    const emailInput = modal.locator('input[type="email"]').first();
+    await emailInput.fill('new@example.com');
+
+    await modal.locator('button:has-text("Update Email")').click();
+
+    const successMessage = modal.locator('text=success').or(modal.locator('text=sent')).or(modal.locator('text="Email updated"')).first();
+    await expect(successMessage).toBeVisible({ timeout: 10000 });
+  });
+
+  test('should update timezone', async ({ page }) => {
+    await page.route('**/api/me/settings**', async (route) => {
+      if (route.request().method() === 'PUT') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ timezone: 'America/New_York' }),
+        });
+      } else if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ timezone: 'America/New_York' }),
+        });
+      }
+    });
+
+    const timezoneSelect = page.locator('select[id*="timezone"]').first();
+    const originalValue = await timezoneSelect.inputValue();
+
+    try {
+      await timezoneSelect.selectOption('America/New_York');
+      await page.click('button:has-text("Save Preferences")');
+
+      await page.reload();
+      await expect(timezoneSelect).toHaveValue('America/New_York', { timeout: 10000 });
+    } finally {
+      await timezoneSelect.selectOption(originalValue);
+      await page.click('button:has-text("Save Preferences")');
+    }
+  });
+
+  test('should update theme preference', async ({ page }) => {
+    const originalTheme = await page.evaluate(() => {
+      const html = document.querySelector('html');
+      return html?.getAttribute('data-theme') || 'system';
+    });
+
+    try {
+      const darkButton = page.locator('button', { hasText: 'Dark' }).first();
+      await darkButton.click();
+
+      await page.waitForTimeout(500);
+
+      const currentTheme = await page.evaluate(() => {
+        const html = document.querySelector('html');
+        return html?.getAttribute('data-theme') || 'system';
+      });
+
+      expect(currentTheme).toBe('dark');
+
+      const lightButton = page.locator('button', { hasText: 'Light' }).first();
+      await lightButton.click();
+      await page.waitForTimeout(500);
+
+      const finalTheme = await page.evaluate(() => {
+        const html = document.querySelector('html');
+        return html?.getAttribute('data-theme') || 'system';
+      });
+
+      expect(finalTheme).toBe('light');
+    } finally {
+      if (originalTheme) {
+        const themeButton = page.locator('button', { hasText: originalTheme.charAt(0).toUpperCase() + originalTheme.slice(1) }).first();
+        await themeButton.click();
+        await page.waitForTimeout(500);
+      }
+    }
+  });
+
+  test('should update language preference', async ({ page }) => {
+    await page.route('**/api/me/settings', async (route) => {
+      if (route.request().method() === 'PUT') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ language: 'zh' }),
+        });
+      }
+    });
+
+    const languageSelect = page.locator('select[id*="language"]').first();
+    const originalValue = await languageSelect.inputValue();
+
+    try {
+      await page.selectOption('select[id*="language"]', 'zh');
+      await page.click('button:has-text("Save Preferences")');
+
+      await page.reload();
+      await expect(languageSelect).toHaveValue('zh', { timeout: 10000 });
+    } finally {
+      await languageSelect.selectOption(originalValue);
+      await page.click('button:has-text("Save Preferences")');
+    }
+  });
+
+  test('should toggle email notifications', async ({ page }) => {
+    await page.route('**/api/me/settings', async (route) => {
+      if (route.request().method() === 'PUT') {
+        const body = JSON.parse(route.request().postData() ?? '{}');
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            preferences: {
+              email_notifications: body.preferences?.email_notifications ?? true,
+            },
+          }),
+        });
+      }
+    });
+
+    const notificationsToggle = page.locator('input[type="checkbox"][id*="email"], [role="switch"][id*="email"]').first();
+    const originalChecked = await notificationsToggle.isChecked();
+
+    try {
+      await notificationsToggle.click();
+      await page.click('button:has-text("Save Preferences")');
+
+      await page.reload();
+      expect(await notificationsToggle.isChecked()).toBe(!originalChecked);
+    } finally {
+      if (await notificationsToggle.isChecked() !== originalChecked) {
+        await notificationsToggle.click();
+        await page.click('button:has-text("Save Preferences")');
+      }
+    }
+  });
+
+  test('should regenerate API token', async ({ page }) => {
+    await page.route('**/api/me/token', async (route) => {
+      if (route.request().method() === 'POST') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ token: 'new-api-token-xyz789' }),
+        });
+      }
+    });
+
+    const tokenSection = page.locator('text=API Key').or(page.locator('text=API Token')).or(page.locator('text="API Access"')).first();
+    await expect(tokenSection).toBeVisible();
+    await tokenSection.click();
+
+    const modal = page.locator('[role="dialog"]').first();
+    await expect(modal).toBeVisible();
+
+    const regenerateButton = modal.locator('button:has-text("Regenerate"), button:has-text("New Token")').first();
+    await regenerateButton.click();
+
+    const confirmButton = page.locator('[role="dialog"]').locator('button:has-text("Confirm")').first();
+    await confirmButton.click();
+
+    const newToken = page.locator('text=new-api-token-xyz789').or(page.locator('[data-testid*="token"]')).first();
+    await expect(newToken).toBeVisible({ timeout: 10000 });
+  });
+
+  test('should sync settings across sessions', async ({ page }) => {
+    const nameInput = page.locator('input[id*="displayName"]').first();
+    const timezoneSelect = page.locator('select[id*="timezone"]').first();
+    const languageSelect = page.locator('select[id*="language"]').first();
+    const notificationsToggle = page.locator('input[type="checkbox"][id*="email"], [role="switch"][id*="email"]').first();
+
+    // Store original values
+    const originalName = await nameInput.inputValue();
+    const originalTimezone = await timezoneSelect.inputValue();
+    const originalLanguage = await languageSelect.inputValue();
+    const originalTheme = await page.evaluate(() => {
+      const html = document.querySelector('html');
+      return html?.getAttribute('data-theme') || 'system';
+    });
+    const originalNotificationsChecked = await notificationsToggle.isChecked();
+
+    await page.route('**/api/me/settings', async (route) => {
+      if (route.request().method() === 'PUT') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            displayName: 'Synced User',
+            timezone: 'Europe/London',
+            language: 'fr',
+            preferences: {
+              theme: 'dark',
+              email_notifications: false,
+            },
+          }),
+        });
+      }
+    });
+
+    try {
+      await nameInput.fill('Synced User');
+      await timezoneSelect.selectOption('Europe/London');
+      await languageSelect.selectOption('fr');
+
+      const darkButton = page.locator('button', { hasText: 'Dark' }).first();
+      await darkButton.click();
+      await page.waitForTimeout(500);
+
+      if (await notificationsToggle.isChecked()) {
+        await notificationsToggle.click();
+      }
+
+      await page.click('button:has-text("Save Profile")');
+      await page.click('button:has-text("Save Preferences")');
+
+      await page.reload();
+
+      await expect(nameInput).toHaveValue('Synced User', { timeout: 10000 });
+      await expect(timezoneSelect).toHaveValue('Europe/London', { timeout: 10000 });
+      await expect(languageSelect).toHaveValue('fr', { timeout: 10000 });
+
+      const currentTheme = await page.evaluate(() => {
+        const html = document.querySelector('html');
+        return html?.getAttribute('data-theme') || 'system';
+      });
+      expect(currentTheme).toBe('dark');
+
+      await expect(notificationsToggle).not.toBeChecked();
+    } finally {
+      // Restore original values
+      await nameInput.fill(originalName);
+      await timezoneSelect.selectOption(originalTimezone);
+      await languageSelect.selectOption(originalLanguage);
+
+      // Restore theme
+      const themeButton = page.locator('button', { hasText: originalTheme.charAt(0).toUpperCase() + originalTheme.slice(1) }).first();
+      await themeButton.click();
+      await page.waitForTimeout(500);
+
+      // Restore notifications toggle
+      if (await notificationsToggle.isChecked() !== originalNotificationsChecked) {
+        await notificationsToggle.click();
+      }
+
+      await page.click('button:has-text("Save Profile")');
+      await page.click('button:has-text("Save Preferences")');
+    }
+  });
+});

@@ -174,3 +174,222 @@ test.describe.serial('Tags - Functionality', () => {
     }
   });
 });
+
+test.describe('Tags - Regression Tests', () => {
+  test.beforeEach(async ({ page }) => {
+    await authenticateUser(page);
+  });
+
+  test('should create a tag via bookmarks page', async ({ page }) => {
+    await page.route('**/api/tags*', async (route) => {
+      const method = route.request().method();
+      if (method === 'POST') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ id: 'tag-1', name: 'development', color: '#FF0000' }),
+        });
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ tags: [{ id: 'tag-1', name: 'development', color: '#FF0000' }], total: 1 }),
+        });
+      }
+    });
+
+    await page.route('**/api/bookmarks', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ bookmarks: [], total: 0 }),
+      });
+    });
+
+    await page.goto('/dashboard/bookmarks');
+    await page.click('button:has-text("Add Bookmark")');
+    const modal = page.locator('[role="dialog"]').first();
+    await expect(modal).toBeVisible();
+
+    const tagsInput = page.locator('input[type="text"], input[id*="tags"]').first();
+    await tagsInput.fill('development');
+    await page.click('button:has-text("Save Bookmark")');
+
+    await expect(modal).toBeHidden({ timeout: 5000 });
+  });
+
+  test('should edit a tag', async ({ page }) => {
+    await page.route('**/api/tags**', async (route) => {
+      const method = route.request().method();
+      if (method === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            tags: [{ id: 'tag-1', name: 'development', color: '#FF0000' }],
+            total: 1,
+          }),
+        });
+      } else if (method === 'PUT') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ id: 'tag-1', name: 'engineering', color: '#00FF00' }),
+        });
+      }
+    });
+
+    await page.goto('/dashboard/tags');
+
+    const tagElement = page.locator('text=development').first();
+    await expect(tagElement).toBeVisible({ timeout: 10000 });
+
+    await tagElement.click();
+    const modal = page.locator('[role="dialog"]').first();
+    await expect(modal).toBeVisible();
+
+    await page.fill('input[id*="tag-name"], input[name*="name"]', 'engineering');
+    await page.click('button:has-text("Save Changes")');
+
+    await expect(page.locator('text=engineering')).toBeVisible({ timeout: 10000 });
+  });
+
+  test('should delete a tag', async ({ page }) => {
+    await page.route('**/api/tags**', async (route) => {
+      const method = route.request().method();
+      if (method === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            tags: [{ id: 'tag-1', name: 'development', color: '#FF0000' }],
+            total: 1,
+          }),
+        });
+      } else if (method === 'DELETE') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true }),
+        });
+      }
+    });
+
+    await page.goto('/dashboard/tags');
+
+    const tagElement = page.locator('text=development').first();
+    await expect(tagElement).toBeVisible({ timeout: 10000 });
+
+    await tagElement.click();
+    const modal = page.locator('[role="dialog"]').first();
+    await expect(modal).toBeVisible();
+
+    const deleteButton = modal.locator('button:has-text("Delete"), button[aria-label*="delete"]').first();
+    await deleteButton.click();
+
+    const confirmButton = page.locator('[role="dialog"]').locator('button:has-text("Delete"), button:has-text("Confirm")').first();
+    const isConfirmVisible = await confirmButton.isVisible({ timeout: 2000 }).catch(() => false);
+    if (isConfirmVisible) {
+      await confirmButton.click();
+    }
+
+    await expect(page.locator('text=development')).not.toBeVisible({ timeout: 10000 });
+  });
+
+  test('should merge two tags', async ({ page }) => {
+    await page.route('**/api/tags**', async (route) => {
+      const method = route.request().method();
+      if (method === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            tags: [
+              { id: 'tag-1', name: 'javascript', color: '#FF0000' },
+              { id: 'tag-2', name: 'js', color: '#00FF00' },
+            ],
+            total: 2,
+          }),
+        });
+      } else if (method === 'PUT') {
+        const url = new URL(route.request().url());
+        const pathParts = url.pathname.split('/');
+        const tagId = pathParts[pathParts.length - 1];
+
+        if (tagId === 'tag-1') {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ id: 'tag-1', name: 'javascript', color: '#FF0000', mergedInto: 'tag-2' }),
+          });
+        } else if (tagId === 'tag-2') {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ id: 'tag-2', name: 'js', color: '#00FF00', mergedWith: ['tag-1'] }),
+          });
+        }
+      }
+    });
+
+    await page.goto('/dashboard/tags');
+
+    const sourceTag = page.locator('text=javascript').first();
+    await expect(sourceTag).toBeVisible({ timeout: 10000 });
+
+    await sourceTag.click();
+    const modal = page.locator('[role="dialog"]').first();
+    await expect(modal).toBeVisible();
+
+    const mergeSelect = page.locator('select').first();
+    await mergeSelect.selectOption('js');
+    await page.click('button:has-text("Merge")');
+
+    await expect(page.locator('text=javascript')).not.toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=js')).toBeVisible({ timeout: 10000 });
+  });
+
+  test('should handle duplicate tag names', async ({ page }) => {
+    await page.route('**/api/tags*', async (route) => {
+      const method = route.request().method();
+      if (method === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            tags: [{ id: 'tag-1', name: 'javascript', color: '#FF0000' }],
+            total: 1,
+          }),
+        });
+      } else if (method === 'POST') {
+        await route.fulfill({
+          status: 409,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'Tag name already exists' }),
+        });
+      }
+    });
+
+    await page.goto('/dashboard/tags');
+
+    const nameInput = page.locator('input[placeholder*="Enter tag name"]').first();
+    await nameInput.fill('javascript');
+    await page.click('button:has-text("Create")');
+
+    const errorMessage = page.locator('text=already exists').or(page.locator('text=duplicate')).or(page.locator('[role="alert"]')).first();
+    await expect(errorMessage).toBeVisible({ timeout: 10000 });
+  });
+
+  test('should validate tag name length', async ({ page }) => {
+    await page.goto('/dashboard/tags');
+
+    const nameInput = page.locator('input[placeholder*="Enter tag name"]').first();
+    const longName = 'A'.repeat(300);
+
+    await nameInput.fill(longName);
+    await page.click('button:has-text("Create")');
+
+    const errorMessage = page.locator('text=too long').or(page.locator('text=maximum')).or(page.locator('text=character')).or(page.locator('[role="alert"]')).first();
+    await expect(errorMessage).toBeVisible({ timeout: 10000 });
+  });
+});
