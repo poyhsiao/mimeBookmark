@@ -1,0 +1,178 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "核心功能优化 - 搜索和过滤系统",
+        "description": "实现高级搜索功能，包括全文搜索、多维度过滤、排序选项",
+        "status": "pending",
+        "priority": "high",
+        "tags": [
+          "core",
+          "search",
+          "filter"
+        ],
+        "dependencies": [],
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "全文搜索功能",
+            "description": "实现基于标题、描述、URL的全文搜索",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "高级过滤器",
+            "description": "实现日期范围、标签、域名等多维度过滤",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "排序选项",
+            "description": "支持按时间、名称、访问次数等多维度排序",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "标签系统增强",
+        "description": "构建强大的标签管理功能，包括标签云、批量编辑、智能推荐",
+        "status": "pending",
+        "priority": "high",
+        "tags": [
+          "core",
+          "tags",
+          "organization"
+        ],
+         "dependencies": [
+           1
+         ],
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "标签云可视化",
+            "description": "实现动态标签云，支持多种布局模式",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "批量标签编辑",
+            "description": "支持多选书签的批量标签操作",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "标签智能推荐",
+            "description": "基于书签内容智能推荐相关标签",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "用户体验优化",
+        "description": "提升整体用户体验，包括响应式设计、性能优化、空状态引导",
+        "status": "pending",
+        "priority": "medium",
+        "tags": [
+          "ux",
+          "performance",
+          "responsive"
+        ],
+        "dependencies": [],
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "响应式布局优化",
+            "description": "针对移动端和平板设备优化布局",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "性能优化",
+            "description": "实现虚拟滚动、懒加载、骨架屏",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "空状态引导",
+            "description": "设计丰富的空状态引导界面",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "导入导出功能",
+        "description": "实现浏览器书签的导入导出功能",
+        "status": "pending",
+        "priority": "low",
+        "tags": [
+          "import",
+          "export",
+          "data"
+        ],
+        "dependencies": [],
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "浏览器书签导入",
+            "description": "支持Chrome/Firefox/Safari书签导入",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "数据导出",
+            "description": "支持HTML/JSON格式导出",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "自动备份",
+            "description": "定期自动备份书签数据",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "PWA支持",
+        "description": "将应用转换为可安装的渐进式Web应用",
+        "status": "pending",
+        "priority": "low",
+        "tags": [
+          "pwa",
+          "offline",
+          "mobile"
+        ],
+        "dependencies": [],
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Service Worker",
+            "description": "实现Service Worker进行离线缓存",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Web App Manifest",
+            "description": "配置manifest.json文件",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "离线支持",
+            "description": "实现离线状态下的基本功能",
+            "status": "pending"
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "created": "2026-02-04T14:00:11.122Z",
+      "updated": "2026-02-04T14:00:11.133Z",
+      "description": "Tasks for master context"
+    }
+  }
+}

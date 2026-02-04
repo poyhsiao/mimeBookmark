@@ -35,10 +35,12 @@ test.describe('Login Page', () => {
     // Fill invalid email but valid password to trigger email validation
     await page.fill('input[type="email"]', 'invalid-email-format');
     await page.fill('input[type="password"]', 'password123');
-    await page.click('button[type="submit"]');
 
-    // Check for validation error message with more specific selector
-    await expect(page.locator('.text-destructive:has-text("Please enter a valid email")')).toBeVisible();
+    // Click the Sign in button to trigger form submission
+    await page.click('button:has-text("Sign in")');
+
+    // Check for validation error message
+    await expect(page.locator('p.text-destructive:has-text("Please enter a valid email")')).toBeVisible();
   });
 
   test('should show error for short password', async ({ page }) => {

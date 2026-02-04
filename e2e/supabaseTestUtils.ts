@@ -47,6 +47,7 @@ export function getCookieDomain(baseUrl = process.env.BASE_URL || 'http://localh
 export async function setupMockSupabaseAuth(page: Page) {
   const mockSession = createMockSession();
   const projectRef = getSupabaseProjectRef();
+  const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
   const cookieDomain = getCookieDomain();
   const context: BrowserContext = page.context();
 
@@ -63,20 +64,23 @@ export async function setupMockSupabaseAuth(page: Page) {
     { projectRef, mockSession }
   );
 
+  // For localhost, use url; for production, use domain/path
+  const cookieOptions = cookieDomain
+    ? { domain: cookieDomain, path: '/' }
+    : { url: baseUrl };
+
   await context.addCookies([
     {
       name: 'e2e-test-mode',
       value: 'true',
-      domain: cookieDomain,
-      path: '/',
       sameSite: 'Lax' as const,
+      ...cookieOptions,
     },
     {
       name: `sb-${projectRef}-auth-token-code-verifier`,
       value: '',
-      domain: cookieDomain,
-      path: '/',
       sameSite: 'Lax' as const,
+      ...cookieOptions,
     },
   ]);
 
