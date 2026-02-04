@@ -6,14 +6,7 @@
   "author": "MimeBookmark",
   "homepage_url": "https://mimebookmark.com",
   "content_security_policy": {
-    "extension_pages": {
-      "default-src": "'self'",
-      "script-src": "'self' 'unsafe-eval'",
-      "object-src": "'self'",
-      "img-src": "'self' data: https: https:",
-      "style-src": "'self' 'unsafe-inline'"
-    },
-    "sandbox": "sandbox allow-scripts allow-popups allow-forms allow-modals"
+    "extension_pages": "default-src 'self'; script-src 'self'; object-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'"
   },
   "action": {
     "default_popup": "popup.html",
