@@ -51,3 +51,6 @@ yarn-error.log*
 next-env.d.ts
 .worktrees/
 .shared/
+
+# Taskmaster state files
+.taskmaster/

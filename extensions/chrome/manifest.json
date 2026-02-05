@@ -5,6 +5,9 @@
   "description": "Quickly save bookmarks to MimeBookmark from your browser",
   "author": "MimeBookmark",
   "homepage_url": "https://mimebookmark.com",
+  "content_security_policy": {
+    "extension_pages": "default-src 'self'; script-src 'self'; object-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_title": "Save to MimeBookmark",
@@ -59,6 +62,7 @@
   },
   "icons": {
     "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
   }

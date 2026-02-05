@@ -428,7 +428,7 @@ async function getToken() {
 function showNotification(title, message, isError = false) {
   chrome.notifications.create({
     type: 'basic',
-    iconUrl: chrome.runtime.getURL(isError ? 'icons/icon-error-128.png' : 'icons/icon-128.png'),
+    iconUrl: chrome.runtime.getURL('icons/icon-128.png'),
     title,
     message
   });
